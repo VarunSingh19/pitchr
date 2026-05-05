@@ -1,3 +1,4 @@
+import { CanvasFactory } from "pdf-parse/worker";
 import { PDFParse } from "pdf-parse";
 import { auth } from "@/auth";
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     // pdf-parse v2 uses a class-based API
-    const parser = new PDFParse({ data: buffer });
+    const parser = new PDFParse({ data: buffer, CanvasFactory });
     const result = await parser.getText();
     let text: string = result.text || "";
 

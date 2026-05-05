@@ -4,6 +4,7 @@ import User from "@/models/User";
 import { verifyOrigin, forbiddenResponse } from "@/lib/auth-helpers";
 import { promises as fs } from "fs";
 import path from "path";
+import { CanvasFactory } from "pdf-parse/worker";
 import { PDFParse } from "pdf-parse";
 
 // Increase max payload size for PDF uploads
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Parse the PDF text for generation
-    const parser = new PDFParse({ data: buffer });
+    const parser = new PDFParse({ data: buffer, CanvasFactory });
     const result = await parser.getText();
     const parsedText = (result.text || "").trim();
     await parser.destroy();
