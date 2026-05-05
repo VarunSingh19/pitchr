@@ -56,28 +56,13 @@ export async function POST(request: Request) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Save file to disk
-    const uploadDir = path.join(process.cwd(), "uploads", "resumes");
-    await fs.mkdir(uploadDir, { recursive: true });
-
-    // Use a unique file name to avoid clashes, but bound to the user
-    const filePath = path.join(uploadDir, `${user._id.toString()}_resume.pdf`);
-
-    // Clean up old file if it exists and had a different name (though we use same name now, it's good practice)
-    if (user.resume?.filePath && user.resume.filePath !== filePath) {
-      try {
-        await fs.unlink(user.resume.filePath);
-      } catch (err) {
-        // ignore if not found
-      }
-    }
-
-    await fs.writeFile(filePath, buffer);
+    // Convert to base64 to store in MongoDB since Vercel is a read-only filesystem
+    const base64Data = buffer.toString("base64");
 
     // Save to DB
     user.resume = {
       fileName: file.name,
-      filePath: filePath,
+      base64Data: base64Data,
       parsedText: parsedText,
     };
 
@@ -110,14 +95,6 @@ export async function DELETE(request: Request) {
 
     if (!user) {
       return Response.json({ error: "User not found" }, { status: 404 });
-    }
-
-    if (user.resume?.filePath) {
-      try {
-        await fs.unlink(user.resume.filePath);
-      } catch (err) {
-        console.error("Failed to delete resume file from disk:", err);
-      }
     }
 
     user.resume = null;

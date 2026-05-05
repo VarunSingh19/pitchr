@@ -43,15 +43,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
 
-    // If resumeBase64 is not provided, it means we should use the saved resume from disk
-    if (!resumeBase64 && user.resume?.filePath) {
-      try {
-        const fileBuffer = await require('fs').promises.readFile(user.resume.filePath);
-        resumeBase64 = fileBuffer.toString('base64');
-        resumeFileName = user.resume.fileName;
-      } catch (err) {
-        return Response.json({ error: "Failed to read saved resume file" }, { status: 500 });
-      }
+    // If resumeBase64 is not provided, it means we should use the saved resume from the DB
+    if (!resumeBase64 && user.resume?.base64Data) {
+      resumeBase64 = user.resume.base64Data;
+      resumeFileName = user.resume.fileName;
     }
 
     if (!user.gmailConfig?.address || !user.gmailConfig?.appPassword) {

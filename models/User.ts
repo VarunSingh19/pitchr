@@ -18,7 +18,7 @@ export interface IGmailConfig {
 
 export interface IResume {
   fileName: string;
-  filePath: string;
+  base64Data: string;
   parsedText: string;
 }
 
@@ -63,7 +63,7 @@ const GmailConfigSchema = new Schema<IGmailConfig>(
 const ResumeSchema = new Schema<IResume>(
   {
     fileName: { type: String, required: true },
-    filePath: { type: String, required: true },
+    base64Data: { type: String, required: true },
     parsedText: { type: String, required: true },
   },
   { _id: false }
