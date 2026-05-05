@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     }
 
     // pdf-parse v2 uses a class-based API
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const parser = new PDFParse({ data: buffer });
     const result = await parser.getText();
     let text: string = result.text || "";
 
