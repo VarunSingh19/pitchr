@@ -16,6 +16,12 @@ export interface IGmailConfig {
   validated: boolean;
 }
 
+export interface IResume {
+  fileName: string;
+  filePath: string;
+  parsedText: string;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
@@ -24,6 +30,7 @@ export interface IUser extends Document {
   apiKeys: IApiKey[];
   selectedModel: string;
   gmailConfig: IGmailConfig | null;
+  resume: IResume | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +60,15 @@ const GmailConfigSchema = new Schema<IGmailConfig>(
   { _id: false }
 );
 
+const ResumeSchema = new Schema<IResume>(
+  {
+    fileName: { type: String, required: true },
+    filePath: { type: String, required: true },
+    parsedText: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
@@ -62,6 +78,7 @@ const UserSchema = new Schema<IUser>(
     apiKeys: { type: [ApiKeySchema], default: [] },
     selectedModel: { type: String, default: DEFAULT_MODEL.id },
     gmailConfig: { type: GmailConfigSchema, default: null },
+    resume: { type: ResumeSchema, default: null },
   },
   { timestamps: true }
 );

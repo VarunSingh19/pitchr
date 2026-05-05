@@ -34,6 +34,10 @@ export async function GET() {
           // Never return the encrypted appPassword
         }
       : null,
+    resume: user.resume ? {
+      fileName: user.resume.fileName,
+      parsedText: user.resume.parsedText,
+    } : null,
   });
 }
 

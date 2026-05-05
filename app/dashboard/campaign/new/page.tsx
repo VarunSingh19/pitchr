@@ -26,6 +26,10 @@ interface UserConfig {
   gmailAddress: string;
   apiKeysCount: number;
   selectedModel: string;
+  savedResume: {
+    fileName: string;
+    parsedText: string;
+  } | null;
 }
 
 export default function NewCampaignPage() {
@@ -40,6 +44,7 @@ export default function NewCampaignPage() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState<string>("");
   const [resumeFileName, setResumeFileName] = useState<string>("");
+  const [useSavedResume, setUseSavedResume] = useState<boolean>(true); // NEW
 
   // ── Generation state ──
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
@@ -83,6 +88,7 @@ export default function NewCampaignPage() {
       setGeneratedEmails(draft.generatedEmails);
       setCurrentStep(draft.step === "send" ? "preview" : draft.step);
       setDraftRestored(true);
+      if (draft.resumeText) setUseSavedResume(false); // If draft had resume text, assume it wasn't the default saved resume or it doesn't matter
     }
   }, []);
 
@@ -103,6 +109,7 @@ export default function NewCampaignPage() {
           gmailAddress: data.gmailConfig?.address || "",
           apiKeysCount: data.apiKeysCount ?? 0,
           selectedModel: data.selectedModel || "",
+          savedResume: data.resume || null,
         });
       } catch {
         setUserConfig(null);
@@ -116,8 +123,7 @@ export default function NewCampaignPage() {
   // ── Upload validation ──
   const isUploadReady =
     leads.length > 0 &&
-    resumeText.length > 0 &&
-    (resumeFile !== null || draftRestored) &&
+    (useSavedResume ? !!userConfig?.savedResume : (resumeText.length > 0 && (resumeFile !== null || draftRestored))) &&
     userConfig !== null &&
     userConfig.apiKeysCount > 0 &&
     userConfig.gmailConfigured &&
@@ -132,6 +138,7 @@ export default function NewCampaignPage() {
   const handleResumeUpload = useCallback(async (file: File) => {
     setResumeFile(file);
     setResumeFileName(file.name);
+    setUseSavedResume(false);
     try {
       const base64 = await fileToBase64(file);
       const res = await fetch("/api/parse-resume", {
@@ -190,12 +197,14 @@ export default function NewCampaignPage() {
         );
 
         try {
+          const textToUse = useSavedResume ? userConfig.savedResume?.parsedText : resumeText;
+          
           const res = await fetch("/api/generate-emails", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               company: leads[i],
-              resumeText,
+              resumeText: textToUse,
               userName: userConfig.userName,
             }),
           });
@@ -276,7 +285,8 @@ export default function NewCampaignPage() {
     }));
     setSendResults(initialResults);
 
-    const resumeBase64 = resumeFile ? await fileToBase64(resumeFile) : "";
+    const base64ToSend = useSavedResume ? "" : (resumeFile ? await fileToBase64(resumeFile) : "");
+    const fileNameToSend = useSavedResume ? (userConfig.savedResume?.fileName || "") : (resumeFile?.name || "Resume.pdf");
 
     try {
       const res = await fetch("/api/send-batch", {
@@ -292,8 +302,8 @@ export default function NewCampaignPage() {
             subject: e.subject,
             body: e.body,
           })),
-          resumeBase64,
-          resumeFileName: resumeFile?.name || "Resume.pdf",
+          resumeBase64: base64ToSend,
+          resumeFileName: fileNameToSend,
         }),
       });
 
@@ -516,12 +526,28 @@ export default function NewCampaignPage() {
               onJsonParsed={handleJsonUpload}
               fileName={leads.length > 0 ? `${leads.length} companies loaded` : undefined}
             />
-            <FileUpload
-              type="pdf"
-              onFileSelected={handleResumeUpload}
-              fileName={resumeFile?.name || (draftRestored && resumeFileName ? `${resumeFileName} (cached)` : undefined)}
-              resumeWordCount={resumeText ? resumeText.split(/\s+/).length : undefined}
-            />
+            {useSavedResume && userConfig?.savedResume ? (
+              <div className="border border-border-default rounded-xl p-8 flex flex-col items-center justify-center text-center bg-bg-surface">
+                <div className="w-12 h-12 rounded-full bg-accent-dim text-accent-primary flex items-center justify-center mb-3">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h3 className="font-semibold text-text-primary mb-1">Saved Resume Active</h3>
+                <p className="text-sm text-text-secondary mb-4">{userConfig.savedResume.fileName}</p>
+                <button
+                  onClick={() => setUseSavedResume(false)}
+                  className="text-xs font-medium text-accent-primary hover:text-accent-primary-hover transition-colors"
+                >
+                  Use a different file for this campaign
+                </button>
+              </div>
+            ) : (
+              <FileUpload
+                type="pdf"
+                onFileSelected={handleResumeUpload}
+                fileName={resumeFile?.name || (draftRestored && resumeFileName ? `${resumeFileName} (cached)` : undefined)}
+                resumeWordCount={resumeText ? resumeText.split(/\s+/).length : undefined}
+              />
+            )}
           </div>
 
           {leads.length > 0 && <CompanyTable leads={leads} />}
@@ -566,6 +592,18 @@ export default function NewCampaignPage() {
             onPause={handlePause}
             onResume={handleResume}
           />
+
+          {generatedEmails.length > 0 && !isGenerating && (
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={() => setCurrentStep("preview")}
+                className="group px-6 py-3 rounded-xl bg-accent-primary hover:bg-accent-primary-hover text-white font-medium transition-all flex items-center gap-2 shadow-sm"
+              >
+                {generatedEmails.some(e => e.status === "pending") ? "Proceed with Generated Emails" : "Next: Review & Edit"}
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
