@@ -9,7 +9,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { email, appPassword } = await request.json();
+    const body = await request.json();
+    const email = body.gmailAddress || body.email;
+    const appPassword = body.appPassword;
 
     if (!email || !appPassword) {
       return Response.json(

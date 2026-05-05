@@ -1,58 +1,127 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
-import type { Lead, GeneratedEmail, SendResult, Credentials } from "@/lib/types";
+import type { Lead, GeneratedEmail, SendResult } from "@/lib/types";
 import { FileUpload } from "@/components/file-upload";
-import { CredentialsForm } from "@/components/credentials-form";
 import { CompanyTable } from "@/components/company-table";
 import { EmailPreviewTable } from "@/components/email-preview-table";
 import { GenerationProgress } from "@/components/generation-progress";
 import { SendProgress } from "@/components/send-progress";
+import { loadDraft, clearDraft, useAutoSaveDraft } from "@/lib/campaign-draft";
 
 type Step = "upload" | "generate" | "preview" | "send";
 
 const STEPS: { key: Step; label: string; num: number }[] = [
-  { key: "upload", label: "Upload & Configure", num: 1 },
+  { key: "upload", label: "Upload Leads", num: 1 },
   { key: "generate", label: "Generate Emails", num: 2 },
   { key: "preview", label: "Review & Edit", num: 3 },
   { key: "send", label: "Send", num: 4 },
 ];
 
+interface UserConfig {
+  userName: string;
+  gmailConfigured: boolean;
+  gmailAddress: string;
+  apiKeysCount: number;
+  selectedModel: string;
+}
+
 export default function NewCampaignPage() {
   const [currentStep, setCurrentStep] = useState<Step>("upload");
+
+  // ── User config (loaded from Settings) ──
+  const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
 
   // ── Upload state ──
   const [leads, setLeads] = useState<Lead[]>([]);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState<string>("");
-  const [credentials, setCredentials] = useState<Credentials>({
-    fullName: "",
-    gmailAddress: "",
-    appPassword: "",
-  });
-  const [gmailValidated, setGmailValidated] = useState(false);
+  const [resumeFileName, setResumeFileName] = useState<string>("");
 
   // ── Generation state ──
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [generationIndex, setGenerationIndex] = useState(0);
+  const pauseRef = useRef(false); // ref for the async loop to check
 
   // ── Send state ──
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [sendComplete, setSendComplete] = useState(false);
 
+  // ── Draft restored flag ──
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // ── Auto-save draft ──
+  const hasMeaningfulData = leads.length > 0 || generatedEmails.length > 0;
+  const generationPausedAt =
+    isPaused || (generatedEmails.length > 0 && !isGenerating && generatedEmails.some((e) => e.status === "pending"))
+      ? generatedEmails.findIndex((e) => e.status === "pending" || e.status === "generating")
+      : null;
+
+  useAutoSaveDraft(
+    currentStep,
+    leads,
+    resumeText,
+    resumeFileName,
+    generatedEmails,
+    generationPausedAt,
+    hasMeaningfulData
+  );
+
+  // ── Restore draft on mount ──
+  useEffect(() => {
+    const draft = loadDraft();
+    if (draft && (draft.leads.length > 0 || draft.generatedEmails.length > 0)) {
+      setLeads(draft.leads);
+      setResumeText(draft.resumeText);
+      setResumeFileName(draft.resumeFileName);
+      setGeneratedEmails(draft.generatedEmails);
+      setCurrentStep(draft.step === "send" ? "preview" : draft.step);
+      setDraftRestored(true);
+    }
+  }, []);
+
+  // ── Load user config from Settings on mount ──
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const res = await fetch("/api/user/settings");
+        if (!res.ok) throw new Error("Failed to load settings");
+        const data = await res.json();
+
+        const sessionRes = await fetch("/api/auth/session");
+        const session = await sessionRes.json();
+
+        setUserConfig({
+          userName: session?.user?.name || "",
+          gmailConfigured: data.gmailConfigured ?? false,
+          gmailAddress: data.gmailConfig?.address || "",
+          apiKeysCount: data.apiKeysCount ?? 0,
+          selectedModel: data.selectedModel || "",
+        });
+      } catch {
+        setUserConfig(null);
+      } finally {
+        setConfigLoading(false);
+      }
+    }
+    loadConfig();
+  }, []);
+
   // ── Upload validation ──
   const isUploadReady =
     leads.length > 0 &&
-    resumeFile !== null &&
     resumeText.length > 0 &&
-    credentials.fullName.trim().length > 0 &&
-    credentials.gmailAddress.trim().length > 0 &&
-    credentials.appPassword.length === 16 &&
-    gmailValidated;
+    (resumeFile !== null || draftRestored) &&
+    userConfig !== null &&
+    userConfig.apiKeysCount > 0 &&
+    userConfig.gmailConfigured &&
+    userConfig.userName.trim().length > 0;
 
   // ── Handle JSON upload ──
   const handleJsonUpload = useCallback((parsedLeads: Lead[]) => {
@@ -62,6 +131,7 @@ export default function NewCampaignPage() {
   // ── Handle Resume upload ──
   const handleResumeUpload = useCallback(async (file: File) => {
     setResumeFile(file);
+    setResumeFileName(file.name);
     try {
       const base64 = await fileToBase64(file);
       const res = await fetch("/api/parse-resume", {
@@ -75,79 +145,120 @@ export default function NewCampaignPage() {
     } catch {
       setResumeText("");
       setResumeFile(null);
+      setResumeFileName("");
     }
   }, []);
 
-  // ── Generate emails ──
-  const handleGenerate = useCallback(async () => {
-    setIsGenerating(true);
-    setGenerationIndex(0);
-    setGeneratedEmails([]);
+  // ── Generate emails with pause support ──
+  const runGeneration = useCallback(
+    async (startFrom: number) => {
+      if (!userConfig) return;
 
-    const initial: GeneratedEmail[] = leads.map((lead) => ({
-      companyId: lead.id,
-      company: lead.company,
-      role: lead.role,
-      contactEmail: lead.contact_email,
-      altEmail: lead.alt_email,
-      subject: "",
-      body: "",
-      status: "pending" as const,
-      selected: true,
-    }));
-    setGeneratedEmails(initial);
+      pauseRef.current = false;
+      setIsGenerating(true);
+      setIsPaused(false);
 
-    for (let i = 0; i < leads.length; i++) {
-      setGenerationIndex(i);
-      setGeneratedEmails((prev) =>
-        prev.map((e, idx) =>
-          idx === i ? { ...e, status: "generating" as const } : e
-        )
-      );
-
-      try {
-        const res = await fetch("/api/generate-emails", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            company: leads[i],
-            resumeText,
-            userName: credentials.fullName,
-          }),
-        });
-
-        if (!res.ok) throw new Error("API error");
-        const data = await res.json();
-
-        setGeneratedEmails((prev) =>
-          prev.map((e, idx) =>
-            idx === i
-              ? {
-                  ...e,
-                  subject: data.subject,
-                  body: data.body,
-                  status: "ready" as const,
-                }
-              : e
-          )
-        );
-      } catch {
-        setGeneratedEmails((prev) =>
-          prev.map((e, idx) =>
-            idx === i
-              ? { ...e, status: "failed" as const, error: "Generation failed" }
-              : e
-          )
-        );
+      // If starting fresh, initialize the email array
+      if (startFrom === 0) {
+        const initial: GeneratedEmail[] = leads.map((lead) => ({
+          companyId: lead.id,
+          company: lead.company,
+          role: lead.role,
+          contactEmail: lead.contact_email,
+          altEmail: lead.alt_email,
+          subject: "",
+          body: "",
+          status: "pending" as const,
+          selected: true,
+        }));
+        setGeneratedEmails(initial);
       }
-    }
 
-    setIsGenerating(false);
-    setCurrentStep("preview");
-  }, [leads, resumeText, credentials.fullName]);
+      for (let i = startFrom; i < leads.length; i++) {
+        // ── Check pause flag ──
+        if (pauseRef.current) {
+          setIsGenerating(false);
+          setIsPaused(true);
+          return; // exit loop — user can resume later
+        }
+
+        setGenerationIndex(i);
+        setGeneratedEmails((prev) =>
+          prev.map((e, idx) =>
+            idx === i ? { ...e, status: "generating" as const } : e
+          )
+        );
+
+        try {
+          const res = await fetch("/api/generate-emails", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              company: leads[i],
+              resumeText,
+              userName: userConfig.userName,
+            }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || "API error");
+          }
+          const data = await res.json();
+
+          setGeneratedEmails((prev) =>
+            prev.map((e, idx) =>
+              idx === i
+                ? {
+                    ...e,
+                    subject: data.subject,
+                    body: data.body,
+                    status: "ready" as const,
+                  }
+                : e
+            )
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Generation failed";
+          setGeneratedEmails((prev) =>
+            prev.map((e, idx) =>
+              idx === i
+                ? { ...e, status: "failed" as const, error: msg }
+                : e
+            )
+          );
+        }
+      }
+
+      setIsGenerating(false);
+      setIsPaused(false);
+      setCurrentStep("preview");
+    },
+    [leads, resumeText, userConfig]
+  );
+
+  const handleGenerate = useCallback(() => {
+    runGeneration(0);
+  }, [runGeneration]);
+
+  const handlePause = useCallback(() => {
+    pauseRef.current = true;
+    // The loop will check this flag and stop after the current email finishes
+  }, []);
+
+  const handleResume = useCallback(() => {
+    // Find the first pending email to resume from
+    const resumeIdx = generatedEmails.findIndex(
+      (e) => e.status === "pending"
+    );
+    if (resumeIdx >= 0) {
+      runGeneration(resumeIdx);
+    }
+  }, [generatedEmails, runGeneration]);
 
   // ── Send emails ──
   const handleSend = useCallback(async () => {
+    if (!userConfig) return;
     const selected = generatedEmails.filter((e) => e.selected && e.status === "ready");
     if (selected.length === 0) return;
 
@@ -181,9 +292,6 @@ export default function NewCampaignPage() {
             subject: e.subject,
             body: e.body,
           })),
-          senderName: credentials.fullName,
-          senderEmail: credentials.gmailAddress,
-          appPassword: credentials.appPassword,
           resumeBase64,
           resumeFileName: resumeFile?.name || "Resume.pdf",
         }),
@@ -224,7 +332,7 @@ export default function NewCampaignPage() {
                 );
               }
             } catch {
-              // skip invalid JSON
+              // skip
             }
           }
         }
@@ -241,27 +349,83 @@ export default function NewCampaignPage() {
 
     setIsSending(false);
     setSendComplete(true);
-  }, [generatedEmails, credentials, resumeFile]);
+    clearDraft(); // Campaign complete — clear the draft
+  }, [generatedEmails, userConfig, resumeFile]);
 
   // ── Reset ──
   const handleReset = useCallback(() => {
     setLeads([]);
     setResumeFile(null);
     setResumeText("");
-    setCredentials({ fullName: "", gmailAddress: "", appPassword: "" });
-    setGmailValidated(false);
+    setResumeFileName("");
     setGeneratedEmails([]);
     setIsGenerating(false);
+    setIsPaused(false);
     setGenerationIndex(0);
     setSendResults([]);
     setIsSending(false);
     setSendComplete(false);
     setCurrentStep("upload");
+    setDraftRestored(false);
+    clearDraft();
   }, []);
+
+  // ── Discard draft ──
+  const handleDiscardDraft = useCallback(() => {
+    if (confirm("Discard this saved campaign draft? This cannot be undone.")) {
+      handleReset();
+    }
+  }, [handleReset]);
+
+  // ── Config status banner ──
+  const renderConfigStatus = () => {
+    if (configLoading) {
+      return (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-bg-surface border border-border-default text-sm text-text-muted">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading your configuration...
+        </div>
+      );
+    }
+
+    if (!userConfig) return null;
+
+    const issues: string[] = [];
+    if (userConfig.apiKeysCount === 0) issues.push("No API key configured");
+    if (!userConfig.gmailConfigured) issues.push("Gmail not configured");
+    if (!userConfig.userName.trim()) issues.push("Name not set in your Google account");
+
+    if (issues.length === 0) {
+      return (
+        <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-success-dim border border-success/20 text-sm">
+          <div className="flex items-center gap-2 text-success">
+            <CheckCircle2 className="w-4 h-4" />
+            Ready — using {userConfig.gmailAddress} with {userConfig.selectedModel}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm">
+        <div className="flex items-center gap-2 text-amber-400">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{issues.join(" · ")}</span>
+        </div>
+        <Link
+          href="/dashboard/settings"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary hover:bg-accent-primary-hover text-white text-xs font-medium transition-all"
+        >
+          <Settings className="w-3.5 h-3.5" />
+          Go to Settings
+        </Link>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
-      {/* ── Step Progress Bar ── */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold mb-1">New Campaign</h1>
@@ -269,14 +433,34 @@ export default function NewCampaignPage() {
             Generate and send personalized cold emails
           </p>
         </div>
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 text-sm text-text-muted hover:text-text-primary transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          {draftRestored && (
+            <button
+              onClick={handleDiscardDraft}
+              className="flex items-center gap-1.5 text-xs text-text-faint hover:text-error transition-colors"
+              title="Discard saved draft"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Discard Draft
+            </button>
+          )}
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 text-sm text-text-muted hover:text-text-primary transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Dashboard
+          </Link>
+        </div>
       </div>
+
+      {/* Draft restored banner */}
+      {draftRestored && currentStep === "upload" && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-accent-dim border border-accent-primary/20 text-sm text-accent-primary animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          Restored your previous campaign draft — pick up where you left off!
+        </div>
+      )}
 
       {/* Step indicators */}
       <div className="flex items-center gap-1">
@@ -323,7 +507,9 @@ export default function NewCampaignPage() {
 
       {/* ── Step: Upload ── */}
       {currentStep === "upload" && (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-6 animate-fade-in">
+          {renderConfigStatus()}
+
           <div className="grid lg:grid-cols-2 gap-6">
             <FileUpload
               type="json"
@@ -333,19 +519,12 @@ export default function NewCampaignPage() {
             <FileUpload
               type="pdf"
               onFileSelected={handleResumeUpload}
-              fileName={resumeFile?.name}
+              fileName={resumeFile?.name || (draftRestored && resumeFileName ? `${resumeFileName} (cached)` : undefined)}
               resumeWordCount={resumeText ? resumeText.split(/\s+/).length : undefined}
             />
           </div>
 
           {leads.length > 0 && <CompanyTable leads={leads} />}
-
-          <CredentialsForm
-            credentials={credentials}
-            onCredentialsChange={setCredentials}
-            onValidated={setGmailValidated}
-            isValidated={gmailValidated}
-          />
 
           <div className="flex justify-end">
             <button
@@ -369,7 +548,8 @@ export default function NewCampaignPage() {
             </p>
             <button
               onClick={() => setCurrentStep("upload")}
-              className="flex items-center gap-2 text-sm text-text-muted hover:text-text-primary transition-colors"
+              disabled={isGenerating}
+              className="flex items-center gap-2 text-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-40"
             >
               <ArrowLeft className="w-4 h-4" />
               Back
@@ -379,9 +559,12 @@ export default function NewCampaignPage() {
           <GenerationProgress
             emails={generatedEmails}
             isGenerating={isGenerating}
+            isPaused={isPaused}
             currentIndex={generationIndex}
             totalCount={leads.length}
             onGenerate={handleGenerate}
+            onPause={handlePause}
+            onResume={handleResume}
           />
         </div>
       )}

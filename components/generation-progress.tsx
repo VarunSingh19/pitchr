@@ -1,14 +1,17 @@
 "use client";
 
-import { Sparkles, CheckCircle2, AlertCircle, Loader2, Clock } from "lucide-react";
+import { Sparkles, CheckCircle2, AlertCircle, Loader2, Clock, Pause, Play } from "lucide-react";
 import type { GeneratedEmail } from "@/lib/types";
 
 interface GenerationProgressProps {
   emails: GeneratedEmail[];
   isGenerating: boolean;
+  isPaused: boolean;
   currentIndex: number;
   totalCount: number;
   onGenerate: () => void;
+  onPause: () => void;
+  onResume: () => void;
 }
 
 const STATUS_CONFIG = {
@@ -21,18 +24,24 @@ const STATUS_CONFIG = {
 export function GenerationProgress({
   emails,
   isGenerating,
+  isPaused,
   currentIndex,
   totalCount,
   onGenerate,
+  onPause,
+  onResume,
 }: GenerationProgressProps) {
   const readyCount = emails.filter((e) => e.status === "ready").length;
   const failedCount = emails.filter((e) => e.status === "failed").length;
-  const progress = totalCount > 0 ? ((readyCount + failedCount) / totalCount) * 100 : 0;
+  const completedCount = readyCount + failedCount;
+  const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  const isDone = emails.length > 0 && !isGenerating && !isPaused && completedCount === totalCount;
+  const hasPartialResults = emails.length > 0 && readyCount > 0 && !isGenerating && !isPaused && completedCount < totalCount;
 
   return (
     <div className="space-y-6">
-      {/* Generate Button */}
-      {emails.length === 0 && (
+      {/* Generate Button (initial state) */}
+      {emails.length === 0 && !isGenerating && (
         <div className="text-center py-16">
           <div className="w-16 h-16 rounded-2xl bg-accent-dim flex items-center justify-center mx-auto mb-5">
             <Sparkles className="w-8 h-8 text-accent-primary" />
@@ -52,33 +61,81 @@ export function GenerationProgress({
         </div>
       )}
 
-      {/* Progress */}
-      {emails.length > 0 && (
+      {/* Progress section */}
+      {(emails.length > 0 || isGenerating) && (
         <>
-          {/* Progress bar */}
+          {/* Progress bar + controls */}
           <div className="rounded-2xl border border-border-default bg-bg-surface p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-medium">
-                {isGenerating ? (
+                {isGenerating && !isPaused && (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-accent-primary" />
                     Generating email {currentIndex + 1} of {totalCount}...
                   </span>
-                ) : (
+                )}
+                {isPaused && (
+                  <span className="flex items-center gap-2 text-amber-400">
+                    <Pause className="w-4 h-4" />
+                    Paused at {completedCount} of {totalCount}
+                  </span>
+                )}
+                {isDone && (
                   <span>
                     Generation complete — {readyCount} ready
                     {failedCount > 0 && `, ${failedCount} failed`}
                   </span>
                 )}
+                {hasPartialResults && (
+                  <span className="flex items-center gap-2 text-amber-400">
+                    <Pause className="w-4 h-4" />
+                    Stopped at {completedCount} of {totalCount} — resume to continue
+                  </span>
+                )}
               </div>
-              <span className="text-xs text-text-muted font-mono">
-                {Math.round(progress)}%
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-muted font-mono">
+                  {Math.round(progress)}%
+                </span>
+
+                {/* Pause / Resume buttons */}
+                {isGenerating && !isPaused && (
+                  <button
+                    onClick={onPause}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 text-xs font-medium transition-all"
+                  >
+                    <Pause className="w-3.5 h-3.5" />
+                    Pause
+                  </button>
+                )}
+                {isPaused && (
+                  <button
+                    onClick={onResume}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-dim hover:bg-accent-primary/20 text-accent-primary text-xs font-medium transition-all"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Resume
+                  </button>
+                )}
+                {hasPartialResults && (
+                  <button
+                    onClick={onResume}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-dim hover:bg-accent-primary/20 text-accent-primary text-xs font-medium transition-all"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Resume
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="w-full h-2 rounded-full bg-bg-base overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-primary-hover transition-all duration-500 ease-out"
+                className={`h-full rounded-full transition-all duration-500 ease-out ${
+                  isPaused
+                    ? "bg-amber-500"
+                    : "bg-gradient-to-r from-accent-primary to-accent-primary-hover"
+                }`}
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -95,7 +152,7 @@ export function GenerationProgress({
                   <div
                     key={email.companyId}
                     className={`flex items-center justify-between px-5 py-3 transition-colors ${
-                      idx === currentIndex && isGenerating ? "bg-accent-dim/30" : ""
+                      idx === currentIndex && isGenerating && !isPaused ? "bg-accent-dim/30" : ""
                     }`}
                   >
                     <div className="flex-1 min-w-0">

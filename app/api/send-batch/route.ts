@@ -1,5 +1,8 @@
 import { createTransporter, sendEmail } from "@/lib/mailer";
 import { auth } from "@/auth";
+import { dbConnect } from "@/lib/db";
+import User from "@/models/User";
+import { decrypt } from "@/lib/encryption";
 
 interface CompanyPayload {
   companyId: string | number;
@@ -21,27 +24,51 @@ export async function POST(request: Request) {
 
     const {
       companies,
-      senderName,
-      senderEmail,
-      appPassword,
       resumeBase64,
       resumeFileName,
     } = await request.json();
 
-    if (!companies || !senderEmail || !appPassword) {
+    if (!companies || companies.length === 0) {
       return Response.json(
-        { error: "Missing required fields" },
+        { error: "No companies to send to" },
         { status: 400 }
       );
     }
 
-    // Create transporter and verify credentials first
+    // Load Gmail credentials from user's DB record
+    await dbConnect();
+    const user = await User.findOne({ email: session.user.email });
+
+    if (!user) {
+      return Response.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (!user.gmailConfig?.address || !user.gmailConfig?.appPassword) {
+      return Response.json(
+        { error: "Gmail not configured. Go to Settings > Gmail Config." },
+        { status: 400 }
+      );
+    }
+
+    if (!user.gmailConfig.validated) {
+      return Response.json(
+        { error: "Gmail configuration has not been validated. Go to Settings > Gmail Config." },
+        { status: 400 }
+      );
+    }
+
+    // Decrypt the stored app password
+    const senderEmail = user.gmailConfig.address;
+    const appPassword = decrypt(user.gmailConfig.appPassword);
+    const senderName = session.user.name || "Pitchr User";
+
+    // Create transporter and verify credentials
     const transporter = createTransporter(senderEmail, appPassword);
     try {
       await transporter.verify();
     } catch {
       return Response.json(
-        { error: "Invalid Gmail credentials. Check your App Password." },
+        { error: "Gmail credentials expired or invalid. Update in Settings > Gmail Config." },
         { status: 401 }
       );
     }

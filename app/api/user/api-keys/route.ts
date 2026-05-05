@@ -2,7 +2,6 @@ import { auth } from "@/auth";
 import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
 import { verifyOrigin, forbiddenResponse } from "@/lib/auth-helpers";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /** GET — List user's API keys (masked) */
 export async function GET() {
@@ -46,15 +45,39 @@ export async function POST(request: Request) {
     return Response.json({ error: "API key is required" }, { status: 400 });
   }
 
-  // Validate the key by making a test call
+  // Validate the key using a free metadata-only call (zero quota cost)
   try {
-    const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    await model.generateContent("Say hello in one word.");
+    let validateRes: Response;
+
+    if (provider === "nvidia") {
+      // NVIDIA NIM: validate via /v1/models with Bearer token
+      validateRes = await fetch("https://integrate.api.nvidia.com/v1/models", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          Accept: "application/json",
+        },
+      });
+    } else {
+      // Gemini: validate via models list with query param
+      validateRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+        { method: "GET" }
+      );
+    }
+
+    if (!validateRes.ok) {
+      const data = await validateRes.json().catch(() => ({}));
+      const msg = data?.error?.message || `HTTP ${validateRes.status}`;
+      return Response.json(
+        { error: `Invalid API key: ${msg}` },
+        { status: 400 }
+      );
+    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     return Response.json(
-      { error: `Invalid API key: ${msg}` },
+      { error: `Failed to validate key: ${msg}` },
       { status: 400 }
     );
   }
