@@ -87,7 +87,7 @@ const UserSchema = new Schema<IUser>(
  * Pre-save hook: encrypt API keys and Gmail app password before writing to MongoDB.
  * Only encrypts if the value is not already encrypted (idempotent).
  */
-UserSchema.pre("save", function (next) {
+UserSchema.pre("save", async function () {
   // Encrypt API keys
   if (this.apiKeys && this.apiKeys.length > 0) {
     for (const apiKey of this.apiKeys) {
@@ -101,8 +101,6 @@ UserSchema.pre("save", function (next) {
   if (this.gmailConfig?.appPassword && !isEncrypted(this.gmailConfig.appPassword)) {
     this.gmailConfig.appPassword = encrypt(this.gmailConfig.appPassword);
   }
-
-  // next();
 });
 
 const User = models.User || model<IUser>("User", UserSchema);

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Parse the PDF text for generation
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const parser = new PDFParse({ data: buffer });
     const result = await parser.getText();
     const parsedText = (result.text || "").trim();
     await parser.destroy();
@@ -89,6 +89,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    console.error("Resume upload error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
     return Response.json({ error: `Resume upload failed: ${message}` }, { status: 500 });
   }
