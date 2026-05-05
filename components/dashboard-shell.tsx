@@ -8,6 +8,8 @@ import {
   Mail,
   LayoutDashboard,
   PlusCircle,
+  History,
+  Inbox,
   Settings,
   LogOut,
   ChevronLeft,
@@ -28,6 +30,8 @@ interface DashboardShellProps {
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/campaign/new", label: "New Campaign", icon: PlusCircle },
+  { href: "/dashboard/history", label: "History", icon: History },
+  { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

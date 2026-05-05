@@ -23,7 +23,7 @@ interface SendEmailParams {
 }
 
 /** Send a single email with optional resume attachment */
-export async function sendEmail(params: SendEmailParams): Promise<void> {
+export async function sendEmail(params: SendEmailParams): Promise<{ messageId: string }> {
   const mailOptions: nodemailer.SendMailOptions = {
     from: params.from,
     to: params.to,
@@ -45,5 +45,6 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     ];
   }
 
-  await params.transporter.sendMail(mailOptions);
+  const info = await params.transporter.sendMail(mailOptions);
+  return { messageId: info.messageId };
 }

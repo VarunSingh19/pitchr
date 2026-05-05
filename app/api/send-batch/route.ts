@@ -2,6 +2,8 @@ import { createTransporter, sendEmail } from "@/lib/mailer";
 import { auth } from "@/auth";
 import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
+import Campaign from "@/models/Campaign";
+import EmailLog from "@/models/EmailLog";
 import { decrypt } from "@/lib/encryption";
 
 interface CompanyPayload {
@@ -92,6 +94,17 @@ export async function POST(request: Request) {
         const fromAddress = `${senderName} <${senderEmail}>`;
         const companyList = companies as CompanyPayload[];
 
+        // Create Campaign record
+        const campaign = new Campaign({
+          userId: user._id,
+          name: `Campaign ${new Date().toLocaleDateString()}`,
+          leadsCount: companyList.length,
+          sentCount: 0,
+          failedCount: 0,
+          status: "sending"
+        });
+        await campaign.save();
+
         for (let i = 0; i < companyList.length; i++) {
           const company = companyList[i];
 
@@ -105,7 +118,7 @@ export async function POST(request: Request) {
           });
 
           try {
-            await sendEmail({
+            const { messageId } = await sendEmail({
               transporter,
               from: fromAddress,
               to: company.contactEmail,
@@ -116,6 +129,20 @@ export async function POST(request: Request) {
               resumeFileName,
             });
 
+            // Save success log
+            await EmailLog.create({
+              campaignId: campaign._id,
+              userId: user._id,
+              companyName: company.company,
+              recipientEmail: company.contactEmail,
+              subject: company.subject,
+              body: company.body,
+              status: "SENT",
+              messageId
+            });
+
+            await Campaign.updateOne({ _id: campaign._id }, { $inc: { sentCount: 1 } });
+
             sendEvent({
               type: "status",
               companyId: company.companyId,
@@ -125,6 +152,21 @@ export async function POST(request: Request) {
           } catch (error) {
             const message =
               error instanceof Error ? error.message : "Send failed";
+            
+            // Save failed log
+            await EmailLog.create({
+              campaignId: campaign._id,
+              userId: user._id,
+              companyName: company.company,
+              recipientEmail: company.contactEmail,
+              subject: company.subject,
+              body: company.body,
+              status: "FAILED",
+              error: message
+            });
+
+            await Campaign.updateOne({ _id: campaign._id }, { $inc: { failedCount: 1 } });
+
             sendEvent({
               type: "status",
               companyId: company.companyId,
@@ -139,6 +181,8 @@ export async function POST(request: Request) {
             await new Promise((resolve) => setTimeout(resolve, 4000));
           }
         }
+
+        await Campaign.updateOne({ _id: campaign._id }, { status: "completed" });
 
         // Final summary
         sendEvent({ type: "complete" });
