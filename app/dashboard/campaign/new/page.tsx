@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2, Copy, X } from "lucide-react";
 import Link from "next/link";
 import type { Lead, GeneratedEmail, SendResult } from "@/lib/types";
 import { FileUpload } from "@/components/file-upload";
@@ -45,6 +46,26 @@ export default function NewCampaignPage() {
   const [resumeText, setResumeText] = useState<string>("");
   const [resumeFileName, setResumeFileName] = useState<string>("");
   const [useSavedResume, setUseSavedResume] = useState<boolean>(true); // NEW
+  const [showPromptHelper, setShowPromptHelper] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [deletingLead, setDeletingLead] = useState<Lead | null>(null);
+
+  const handleDeleteLead = useCallback((leadToDelete: Lead) => {
+    setDeletingLead(leadToDelete);
+  }, []);
+
+  const confirmDeleteLead = useCallback(() => {
+    if (deletingLead) {
+      setLeads((prev) => prev.filter((l) => l !== deletingLead));
+      setDeletingLead(null);
+    }
+  }, [deletingLead]);
+
+  const handleUpdateLead = useCallback((updatedLead: Lead) => {
+    setLeads((prev) => prev.map((l) => l.id === updatedLead.id ? updatedLead : l));
+    setEditingLead(null);
+  }, []);
 
   // ── Generation state ──
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
@@ -57,6 +78,10 @@ export default function NewCampaignPage() {
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [sendComplete, setSendComplete] = useState(false);
+
+  // ── Mounted state for Portals ──
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // ── Draft restored flag ──
   const [draftRestored, setDraftRestored] = useState(false);
@@ -198,7 +223,7 @@ export default function NewCampaignPage() {
 
         try {
           const textToUse = useSavedResume ? userConfig.savedResume?.parsedText : resumeText;
-          
+
           const res = await fetch("/api/generate-emails", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -219,11 +244,11 @@ export default function NewCampaignPage() {
             prev.map((e, idx) =>
               idx === i
                 ? {
-                    ...e,
-                    subject: data.subject,
-                    body: data.body,
-                    status: "ready" as const,
-                  }
+                  ...e,
+                  subject: data.subject,
+                  body: data.body,
+                  status: "ready" as const,
+                }
                 : e
             )
           );
@@ -332,11 +357,11 @@ export default function NewCampaignPage() {
                   prev.map((r) =>
                     r.companyId === event.companyId
                       ? {
-                          ...r,
-                          status: event.status,
-                          error: event.error,
-                          timestamp: event.timestamp,
-                        }
+                        ...r,
+                        status: event.status,
+                        error: event.error,
+                        timestamp: event.timestamp,
+                      }
                       : r
                   )
                 );
@@ -422,13 +447,7 @@ export default function NewCampaignPage() {
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{issues.join(" · ")}</span>
         </div>
-        <Link
-          href="/dashboard/settings"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary hover:bg-accent-primary-hover text-white text-xs font-medium transition-all"
-        >
-          <Settings className="w-3.5 h-3.5" />
-          Go to Settings
-        </Link>
+
       </div>
     );
   };
@@ -454,13 +473,7 @@ export default function NewCampaignPage() {
               Discard Draft
             </button>
           )}
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 text-sm text-text-muted hover:text-text-primary transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Dashboard
-          </Link>
+
         </div>
       </div>
 
@@ -483,28 +496,25 @@ export default function NewCampaignPage() {
             <div key={step.key} className="flex items-center">
               {idx > 0 && (
                 <div
-                  className={`w-8 h-px mx-1 transition-colors ${
-                    isCompleted ? "bg-accent-primary" : "bg-border-default"
-                  }`}
+                  className={`w-8 h-px mx-1 transition-colors ${isCompleted ? "bg-accent-primary" : "bg-border-default"
+                    }`}
                 />
               )}
               <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  isActive
-                    ? "bg-accent-dim text-accent-primary border border-accent-primary/30"
-                    : isCompleted
-                      ? "text-accent-primary"
-                      : "text-text-muted"
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isActive
+                  ? "bg-accent-dim text-accent-primary border border-accent-primary/30"
+                  : isCompleted
+                    ? "text-accent-primary"
+                    : "text-text-muted"
+                  }`}
               >
                 <span
-                  className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold ${
-                    isActive
-                      ? "bg-accent-primary text-white"
-                      : isCompleted
-                        ? "bg-accent-primary/20 text-accent-primary"
-                        : "bg-bg-elevated text-text-faint"
-                  }`}
+                  className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold ${isActive
+                    ? "bg-accent-primary text-white"
+                    : isCompleted
+                      ? "bg-accent-primary/20 text-accent-primary"
+                      : "bg-bg-elevated text-text-faint"
+                    }`}
                 >
                   {step.num}
                 </span>
@@ -521,11 +531,110 @@ export default function NewCampaignPage() {
           {renderConfigStatus()}
 
           <div className="grid lg:grid-cols-2 gap-6">
-            <FileUpload
-              type="json"
-              onJsonParsed={handleJsonUpload}
-              fileName={leads.length > 0 ? `${leads.length} companies loaded` : undefined}
-            />
+            <div className="flex flex-col gap-3">
+              <FileUpload
+                type="json"
+                onJsonParsed={handleJsonUpload}
+                fileName={leads.length > 0 ? `${leads.length} companies loaded` : undefined}
+              />
+              <button
+                onClick={() => setShowPromptHelper(true)}
+                className="text-xs font-medium text-accent-primary hover:text-accent-primary-hover transition-colors text-center w-full mt-2"
+              >
+                Don't have a JSON? See prompt to generate one
+              </button>
+
+              {/* Modal Overlay rendered via Portal */}
+              {showPromptHelper && mounted && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                  <div className="bg-bg-surface border border-border-default rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+                    <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-bg-elevated/50">
+                      <h3 className="font-semibold text-text-primary">Prompt for ChatGPT/Claude</h3>
+                      <button
+                        onClick={() => setShowPromptHelper(false)}
+                        className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-subtle transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="p-4 flex-1 overflow-y-auto">
+                      <pre className="text-sm text-text-primary leading-relaxed font-mono bg-black/40 p-5 rounded-xl border border-border-default whitespace-pre-wrap">
+                        {`Search the web for companies in [YOUR CITY] actively hiring [YOUR ROLE e.g. Full Stack Developer / React / Node.js].
+For each company found:
+- Cross-verify their HR/careers email by checking their website, LinkedIn, job postings, and Glassdoor
+- Only include companies where an email can be confirmed or reasonably inferred from their domain
+- Mark email_verified: true only if the email was directly found in a public source (job post, LinkedIn, website)
+- Include fit_score explaining why this company is a good match
+
+Return a JSON array with these exact fields per company:
+{
+  "id": number,
+  "company": "Company Name",
+  "location": "City, State",
+  "area": "Specific area/district",
+  "role": "Exact role they are hiring for",
+  "description": "2-3 sentence company description and why they are hiring",
+  "contact_email": "primary email",
+  "alt_email": "backup email or null",
+  "website": "domain.com",
+  "type": "Full-time / Freelance / Contract",
+  "stack": ["Tech1", "Tech2"],
+  "email_verified": true/false,
+  "email_source": "Where this email was found",
+  "fit_score": "Why this is a good match for me",
+  "status": "Actively Hiring / Hiring / Open"
+}
+
+Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedIn, Cutshort, Wellfound, and company websites.`}
+                      </pre>
+                    </div>
+
+                    <div className="p-4 border-t border-border-subtle bg-bg-elevated/50 flex justify-end">
+                      <button
+                        onClick={() => {
+                          const promptText = `Search the web for companies in [YOUR CITY] actively hiring [YOUR ROLE e.g. Full Stack Developer / React / Node.js].
+For each company found:
+- Cross-verify their HR/careers email by checking their website, LinkedIn, job postings, and Glassdoor
+- Only include companies where an email can be confirmed or reasonably inferred from their domain
+- Mark email_verified: true only if the email was directly found in a public source (job post, LinkedIn, website)
+- Include fit_score explaining why this company is a good match
+
+Return a JSON array with these exact fields per company:
+{
+  "id": number,
+  "company": "Company Name",
+  "location": "City, State",
+  "area": "Specific area/district",
+  "role": "Exact role they are hiring for",
+  "description": "2-3 sentence company description and why they are hiring",
+  "contact_email": "primary email",
+  "alt_email": "backup email or null",
+  "website": "domain.com",
+  "type": "Full-time / Freelance / Contract",
+  "stack": ["Tech1", "Tech2"],
+  "email_verified": true/false,
+  "email_source": "Where this email was found",
+  "fit_score": "Why this is a good match for me",
+  "status": "Actively Hiring / Hiring / Open"
+}
+
+Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedIn, Cutshort, Wellfound, and company websites.`;
+                          navigator.clipboard.writeText(promptText);
+                          setCopiedPrompt(true);
+                          setTimeout(() => setCopiedPrompt(false), 2000);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-accent-primary hover:bg-accent-primary-hover text-white text-sm font-medium transition-all flex items-center gap-2"
+                      >
+                        {copiedPrompt ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        {copiedPrompt ? "Copied to Clipboard!" : "Copy Full Prompt"}
+                      </button>
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )}
+            </div>
             {useSavedResume && userConfig?.savedResume ? (
               <div className="border border-border-default rounded-xl p-8 flex flex-col items-center justify-center text-center bg-bg-surface">
                 <div className="w-12 h-12 rounded-full bg-accent-dim text-accent-primary flex items-center justify-center mb-3">
@@ -550,7 +659,139 @@ export default function NewCampaignPage() {
             )}
           </div>
 
-          {leads.length > 0 && <CompanyTable leads={leads} />}
+          {leads.length > 0 && (
+            <CompanyTable 
+              leads={leads} 
+              onEdit={setEditingLead} 
+              onDelete={handleDeleteLead} 
+            />
+          )}
+
+          {/* Edit Lead Modal Overlay */}
+          {editingLead && mounted && createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+              <div className="bg-bg-surface border border-border-default rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+                <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-bg-elevated/50">
+                  <h3 className="font-semibold text-text-primary">Edit Lead</h3>
+                  <button
+                    onClick={() => setEditingLead(null)}
+                    className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-subtle transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <form 
+                  className="p-4 flex flex-col gap-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleUpdateLead({
+                      ...editingLead,
+                      company: formData.get("company") as string,
+                      role: formData.get("role") as string,
+                      contact_email: formData.get("contact_email") as string,
+                      stack: (formData.get("stack") as string).split(",").map(s => s.trim()).filter(Boolean),
+                      fit_score: formData.get("fit_score") as string,
+                    });
+                  }}
+                >
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-text-secondary">Company Name</label>
+                    <input 
+                      name="company" 
+                      defaultValue={editingLead.company} 
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-text-secondary">Role</label>
+                    <input 
+                      name="role" 
+                      defaultValue={editingLead.role} 
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-text-secondary">Email</label>
+                    <input 
+                      name="contact_email" 
+                      defaultValue={editingLead.contact_email} 
+                      type="email"
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-text-secondary">Stack (comma separated)</label>
+                    <input 
+                      name="stack" 
+                      defaultValue={(Array.isArray(editingLead.stack) ? editingLead.stack : [editingLead.stack]).filter(Boolean).join(", ")} 
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-text-secondary">Fit Score</label>
+                    <input 
+                      name="fit_score" 
+                      defaultValue={editingLead.fit_score} 
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
+                    />
+                  </div>
+                  <div className="pt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingLead(null)}
+                      className="px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-lg bg-accent-primary hover:bg-accent-primary-hover text-white text-sm font-medium transition-all"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>,
+            document.body
+          )}
+
+          {/* Delete Lead Modal Overlay */}
+          {deletingLead && mounted && createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+              <div className="bg-bg-surface border border-border-default rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col">
+                <div className="p-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-error/10 text-error flex items-center justify-center mx-auto mb-4">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-bold text-lg text-text-primary mb-2">Delete Lead</h3>
+                  <p className="text-sm text-text-secondary">
+                    Are you sure you want to remove <span className="font-medium text-text-primary">{deletingLead.company}</span> from this campaign? This action cannot be undone.
+                  </p>
+                </div>
+                <div className="p-4 border-t border-border-subtle bg-bg-elevated/50 flex items-center gap-3">
+                  <button
+                    onClick={() => setDeletingLead(null)}
+                    className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteLead}
+                    className="flex-1 px-4 py-2 rounded-lg bg-error hover:bg-error/90 text-white text-sm font-medium transition-all"
+                  >
+                    Delete Lead
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
           <div className="flex justify-end">
             <button

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Send,
   CheckSquare,
@@ -9,6 +10,8 @@ import {
   Eye,
   CheckCircle2,
   AlertCircle,
+  Trash2,
+  X,
 } from "lucide-react";
 import type { GeneratedEmail } from "@/lib/types";
 import { EmailEditModal } from "./email-edit-modal";
@@ -25,6 +28,17 @@ export function EmailPreviewTable({
 }: EmailPreviewTableProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [deletingEmail, setDeletingEmail] = useState<GeneratedEmail | null>(null);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const confirmDelete = () => {
+    if (deletingEmail) {
+      onEmailsChange(emails.filter((e) => e.companyId !== deletingEmail.companyId));
+      setDeletingEmail(null);
+    }
+  };
 
   const readyEmails = emails.filter((e) => e.status === "ready");
   const selectedCount = readyEmails.filter((e) => e.selected).length;
@@ -159,6 +173,13 @@ export function EmailPreviewTable({
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
+                        <button
+                          onClick={() => setDeletingEmail(email)}
+                          className="p-1.5 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     )}
                   </td>
@@ -186,6 +207,38 @@ export function EmailPreviewTable({
           mode="preview"
           onClose={() => setPreviewIndex(null)}
         />
+      )}
+
+      {/* Delete Email Modal Overlay */}
+      {deletingEmail && mounted && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-bg-surface border border-border-default rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-error/10 text-error flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-lg text-text-primary mb-2">Delete Email</h3>
+              <p className="text-sm text-text-secondary">
+                Are you sure you want to remove the generated email for <span className="font-medium text-text-primary">{deletingEmail.company}</span>? This action cannot be undone.
+              </p>
+            </div>
+            <div className="p-4 border-t border-border-subtle bg-bg-elevated/50 flex items-center gap-3">
+              <button
+                onClick={() => setDeletingEmail(null)}
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2 rounded-lg bg-error hover:bg-error/90 text-white text-sm font-medium transition-all"
+              >
+                Delete Email
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

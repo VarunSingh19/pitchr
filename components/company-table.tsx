@@ -1,13 +1,15 @@
 "use client";
 
-import { Building2 } from "lucide-react";
+import { Building2, Edit2, Trash2 } from "lucide-react";
 import type { Lead } from "@/lib/types";
 
 interface CompanyTableProps {
   leads: Lead[];
+  onEdit?: (lead: Lead) => void;
+  onDelete?: (lead: Lead) => void;
 }
 
-export function CompanyTable({ leads }: CompanyTableProps) {
+export function CompanyTable({ leads, onEdit, onDelete }: CompanyTableProps) {
   return (
     <div className="rounded-2xl border border-border-default bg-bg-surface overflow-hidden">
       {/* Header */}
@@ -31,6 +33,7 @@ export function CompanyTable({ leads }: CompanyTableProps) {
               <th className="px-5 py-3 font-medium">Email</th>
               <th className="px-5 py-3 font-medium">Stack</th>
               <th className="px-5 py-3 font-medium">Fit</th>
+              {(onEdit || onDelete) && <th className="px-5 py-3 font-medium text-right">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-border-default">
@@ -74,6 +77,30 @@ export function CompanyTable({ leads }: CompanyTableProps) {
                     {lead.fit_score || "—"}
                   </span>
                 </td>
+                {(onEdit || onDelete) && (
+                  <td className="px-5 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {onEdit && (
+                        <button
+                          onClick={() => onEdit(lead)}
+                          className="p-1.5 rounded-lg text-text-muted hover:text-accent-primary hover:bg-accent-dim transition-colors"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          onClick={() => onDelete(lead)}
+                          className="p-1.5 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
