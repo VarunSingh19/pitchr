@@ -4,7 +4,7 @@ import User from "@/models/User";
 import { verifyOrigin, forbiddenResponse } from "@/lib/auth-helpers";
 import { promises as fs } from "fs";
 import path from "path";
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 
 // Increase max payload size for PDF uploads
 export const maxDuration = 60; // 60 seconds
@@ -39,8 +39,10 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Parse the PDF text for generation
-    const pdfData = await pdfParse(buffer);
-    const parsedText = pdfData.text.trim();
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const result = await parser.getText();
+    const parsedText = (result.text || "").trim();
+    await parser.destroy();
 
     if (!parsedText || parsedText.length < 50) {
       return Response.json({ error: "Could not extract enough text from this PDF. Please ensure it's not an image-only PDF." }, { status: 400 });
