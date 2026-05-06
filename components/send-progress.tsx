@@ -120,9 +120,8 @@ export function SendProgress({
             className="h-full rounded-full transition-all duration-700 ease-out"
             style={{
               width: `${progress}%`,
-              background: `linear-gradient(90deg, var(--accent-primary) 0%, ${
-                failedCount > 0 ? "var(--state-error)" : "var(--state-success)"
-              } 100%)`,
+              background: `linear-gradient(90deg, var(--accent-primary) 0%, ${failedCount > 0 ? "var(--state-error)" : "var(--state-success)"
+                } 100%)`,
             }}
           />
         </div>
@@ -157,9 +156,8 @@ export function SendProgress({
                   )}
                   <div className="flex items-center gap-1.5">
                     <StatusIcon
-                      className={`w-3.5 h-3.5 ${config.color} ${
-                        result.status === "sending" ? "animate-spin" : ""
-                      }`}
+                      className={`w-3.5 h-3.5 ${config.color} ${result.status === "sending" ? "animate-spin" : ""
+                        }`}
                     />
                     <span className={`text-xs font-medium ${config.color}`}>
                       {config.label}

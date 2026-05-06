@@ -8,8 +8,11 @@ import { getProviderForModel } from "@/lib/models-config";
 import { Types } from "mongoose";
 
 export const generateSingleEmail = inngest.createFunction(
-  { id: "generate-single-email", retries: 5 },
-  { event: "campaign/generate.email" },
+  {
+    id: "generate-single-email",
+    retries: 5,
+    triggers: [{ event: "campaign/generate.email" }],
+  },
   async ({ event, step }) => {
     const { campaignId, lead, userId, resumeText, userName } = event.data;
 
