@@ -6,7 +6,8 @@ export interface ICampaign extends Document {
   leadsCount: number;
   sentCount: number;
   failedCount: number;
-  status: "draft" | "generating" | "reviewing" | "sending" | "completed";
+  status: "DRAFT" | "GENERATING" | "READY" | "SENDING" | "COMPLETED" | "FAILED";
+  totalLeads: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,10 +19,11 @@ const CampaignSchema = new Schema<ICampaign>(
     leadsCount: { type: Number, default: 0 },
     sentCount: { type: Number, default: 0 },
     failedCount: { type: Number, default: 0 },
+    totalLeads: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ["draft", "generating", "reviewing", "sending", "completed"],
-      default: "draft",
+      enum: ["DRAFT", "GENERATING", "READY", "SENDING", "COMPLETED", "FAILED"],
+      default: "DRAFT",
     },
   },
   { timestamps: true }

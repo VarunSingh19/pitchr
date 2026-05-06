@@ -23,13 +23,13 @@ export default async function HistoryPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col items-start gap-4">
+        <div className="min-w-0 w-full">
           <h1 className="text-2xl font-bold tracking-tight text-text-primary flex items-center gap-2">
-            <History className="w-6 h-6 text-accent-primary" />
-            Campaign History
+            <History className="w-6 h-6 text-accent-primary flex-shrink-0" />
+            <span>Campaign History</span>
           </h1>
-          <p className="text-text-secondary mt-1">
+          <p className="text-text-secondary mt-1 text-sm sm:text-base leading-relaxed break-words">
             View the performance and details of your past outreach campaigns.
           </p>
         </div>
@@ -63,9 +63,9 @@ export default async function HistoryPage() {
                 key={campaign._id.toString()}
                 className="bg-bg-surface border border-border-default rounded-2xl p-6 transition-all hover:border-accent-primary/30"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-text-primary mb-1">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-3 sm:gap-4">
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-semibold text-text-primary mb-1 truncate">
                       {campaign.name}
                     </h3>
                     <p className="text-sm text-text-secondary">
@@ -78,12 +78,12 @@ export default async function HistoryPage() {
                       })}
                     </p>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-accent-dim text-accent-primary text-xs font-semibold uppercase tracking-wider">
+                  <span className="self-start sm:self-auto px-3 py-1 rounded-full bg-accent-dim text-accent-primary text-xs font-semibold uppercase tracking-wider flex-shrink-0">
                     {campaign.status}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-bg-elevated rounded-xl p-4 border border-border-subtle">
                     <div className="flex items-center gap-2 text-text-muted mb-1">
                       <FileText className="w-4 h-4" />
@@ -109,15 +109,15 @@ export default async function HistoryPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-border-default flex items-center justify-between">
+                <div className="mt-4 pt-4 border-t border-border-default flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="text-sm font-medium text-text-secondary">
                     Delivery Success Rate: <span className="text-text-primary">{successRate}%</span>
                   </div>
                   <Link 
                     href={`/dashboard/history/${campaign._id}`}
-                    className="text-sm font-medium text-accent-primary hover:text-accent-primary-hover transition-colors"
+                    className="text-sm font-medium text-accent-primary hover:text-accent-primary-hover transition-colors inline-flex items-center gap-1"
                   >
-                    View Full Logs →
+                    View Full Logs <span aria-hidden="true">&rarr;</span>
                   </Link>
                 </div>
               </div>

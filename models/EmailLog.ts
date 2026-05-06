@@ -4,12 +4,15 @@ export interface IEmailLog extends Document {
   campaignId: Types.ObjectId;
   userId: Types.ObjectId;
   companyName: string;
+  role: string;
   recipientEmail: string;
   subject: string;
   body: string;
-  status: "SENT" | "FAILED" | "BOUNCED" | "REPLIED";
+  status: "QUEUED" | "GENERATED" | "SENT" | "FAILED" | "BOUNCED" | "REPLIED";
   messageId?: string; // The SMTP message-id used to track replies
   error?: string;
+  generationError?: string;
+  retryCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,16 +22,19 @@ const EmailLogSchema = new Schema<IEmailLog>(
     campaignId: { type: Schema.Types.ObjectId, ref: "Campaign", required: true },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     companyName: { type: String, required: true },
+    role: { type: String, required: true },
     recipientEmail: { type: String, required: true },
     subject: { type: String, required: true },
     body: { type: String, required: true },
     status: {
       type: String,
-      enum: ["SENT", "FAILED", "BOUNCED", "REPLIED"],
-      default: "SENT",
+      enum: ["QUEUED", "GENERATED", "SENT", "FAILED", "BOUNCED", "REPLIED"],
+      default: "QUEUED",
     },
     messageId: { type: String, index: true }, // Indexed for quick reply lookup
     error: { type: String },
+    generationError: { type: String },
+    retryCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

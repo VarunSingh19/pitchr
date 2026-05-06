@@ -14,6 +14,7 @@ export interface IGmailConfig {
   address: string;
   appPassword: string;
   validated: boolean;
+  lastSyncDate?: Date;
 }
 
 export interface IResume {
@@ -56,6 +57,7 @@ const GmailConfigSchema = new Schema<IGmailConfig>(
     address: { type: String, default: "" },
     appPassword: { type: String, default: "" },
     validated: { type: Boolean, default: false },
+    lastSyncDate: { type: Date },
   },
   { _id: false }
 );

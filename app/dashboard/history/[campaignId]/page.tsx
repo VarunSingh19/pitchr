@@ -33,18 +33,18 @@ export default async function CampaignDetailsPage({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start sm:items-center gap-4">
         <Link
           href="/dashboard/history"
-          className="p-2 rounded-xl border border-border-default hover:bg-bg-elevated transition-colors text-text-muted hover:text-text-primary"
+          className="p-2 flex-shrink-0 rounded-xl border border-border-default hover:bg-bg-elevated transition-colors text-text-muted hover:text-text-primary mt-1 sm:mt-0"
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary truncate">
             {campaign.name}
           </h1>
-          <div className="flex items-center gap-2 text-sm text-text-secondary mt-1">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary mt-1">
             <Calendar className="w-4 h-4" />
             {new Date(campaign.createdAt).toLocaleDateString(undefined, {
               year: 'numeric',

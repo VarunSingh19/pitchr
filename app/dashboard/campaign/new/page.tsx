@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2, Copy, X } from "lucide-react";
-import Link from "next/link";
 import type { Lead, GeneratedEmail, SendResult } from "@/lib/types";
 import { FileUpload } from "@/components/file-upload";
 import { CompanyTable } from "@/components/company-table";
@@ -43,8 +42,17 @@ export default function NewCampaignPage() {
   // ── Upload state ──
   const [leads, setLeads] = useState<Lead[]>([]);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [resumeText, setResumeText] = useState<string>("");
-  const [resumeFileName, setResumeFileName] = useState<string>("");
+  const [resumeText, setResumeText] = useState("");
+  const [resumeFileName, setResumeFileName] = useState("");
+  const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [campaignId, setCampaignId] = useState<string | null>(null);
+  const [pollingStatus, setPollingStatus] = useState({ generated: 0, failed: 0, total: 0, status: "DRAFT" });
+  const [generationIndex, setGenerationIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [sendResults, setSendResults] = useState<SendResult[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const [sendComplete, setSendComplete] = useState(false);
   const [useSavedResume, setUseSavedResume] = useState<boolean>(true); // NEW
   const [showPromptHelper, setShowPromptHelper] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -67,17 +75,7 @@ export default function NewCampaignPage() {
     setEditingLead(null);
   }, []);
 
-  // ── Generation state ──
-  const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [generationIndex, setGenerationIndex] = useState(0);
-  const pauseRef = useRef(false); // ref for the async loop to check
 
-  // ── Send state ──
-  const [sendResults, setSendResults] = useState<SendResult[]>([]);
-  const [isSending, setIsSending] = useState(false);
-  const [sendComplete, setSendComplete] = useState(false);
 
   // ── Mounted state for Portals ──
   const [mounted, setMounted] = useState(false);
@@ -88,10 +86,7 @@ export default function NewCampaignPage() {
 
   // ── Auto-save draft ──
   const hasMeaningfulData = leads.length > 0 || generatedEmails.length > 0;
-  const generationPausedAt =
-    isPaused || (generatedEmails.length > 0 && !isGenerating && generatedEmails.some((e) => e.status === "pending"))
-      ? generatedEmails.findIndex((e) => e.status === "pending" || e.status === "generating")
-      : null;
+  const generationPausedAt: number | null = null; // Background generation via Inngest — no client-side pause tracking
 
   useAutoSaveDraft(
     currentStep,
@@ -148,8 +143,8 @@ export default function NewCampaignPage() {
   // ── Upload validation ──
   const isUploadReady =
     leads.length > 0 &&
-    (useSavedResume ? !!userConfig?.savedResume : (resumeText.length > 0 && (resumeFile !== null || draftRestored))) &&
     userConfig !== null &&
+    (useSavedResume ? !!userConfig.savedResume : (resumeText.length > 0 && (resumeFile !== null || draftRestored))) &&
     userConfig.apiKeysCount > 0 &&
     userConfig.gmailConfigured &&
     userConfig.userName.trim().length > 0;
@@ -181,114 +176,97 @@ export default function NewCampaignPage() {
     }
   }, []);
 
-  // ── Generate emails with pause support ──
-  const runGeneration = useCallback(
-    async (startFrom: number) => {
-      if (!userConfig) return;
+  // ── Polling Logic ──
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
 
-      pauseRef.current = false;
-      setIsGenerating(true);
-      setIsPaused(false);
-
-      // If starting fresh, initialize the email array
-      if (startFrom === 0) {
-        const initial: GeneratedEmail[] = leads.map((lead) => ({
-          companyId: lead.id,
-          company: lead.company,
-          role: lead.role,
-          contactEmail: lead.contact_email,
-          altEmail: lead.alt_email,
-          subject: "",
-          body: "",
-          status: "pending" as const,
-          selected: true,
-        }));
-        setGeneratedEmails(initial);
-      }
-
-      for (let i = startFrom; i < leads.length; i++) {
-        // ── Check pause flag ──
-        if (pauseRef.current) {
-          setIsGenerating(false);
-          setIsPaused(true);
-          return; // exit loop — user can resume later
-        }
-
-        setGenerationIndex(i);
-        setGeneratedEmails((prev) =>
-          prev.map((e, idx) =>
-            idx === i ? { ...e, status: "generating" as const } : e
-          )
-        );
-
+    if (isGenerating && campaignId) {
+      interval = setInterval(async () => {
         try {
-          const textToUse = useSavedResume ? userConfig.savedResume?.parsedText : resumeText;
-
-          const res = await fetch("/api/generate-emails", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              company: leads[i],
-              resumeText: textToUse,
-              userName: userConfig.userName,
-            }),
-          });
-
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || "API error");
-          }
+          const res = await fetch(`/api/campaigns/${campaignId}/status`);
+          if (!res.ok) return;
           const data = await res.json();
+          setPollingStatus(data);
 
-          setGeneratedEmails((prev) =>
-            prev.map((e, idx) =>
-              idx === i
-                ? {
-                  ...e,
-                  subject: data.subject,
-                  body: data.body,
-                  status: "ready" as const,
-                }
-                : e
-            )
-          );
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "Generation failed";
-          setGeneratedEmails((prev) =>
-            prev.map((e, idx) =>
-              idx === i
-                ? { ...e, status: "failed" as const, error: msg }
-                : e
-            )
-          );
+          if (data.generated + data.failed >= data.total && data.total > 0) {
+            setIsGenerating(false);
+            clearInterval(interval);
+            // Fetch the final emails for preview
+            const emailsRes = await fetch(`/api/campaigns/${campaignId}/emails`);
+            if (emailsRes.ok) {
+              const emails = await emailsRes.json();
+              setGeneratedEmails(emails);
+              setCurrentStep("preview");
+            }
+          }
+        } catch (error) {
+          console.error("Polling error:", error);
         }
-      }
-
-      setIsGenerating(false);
-      setIsPaused(false);
-      setCurrentStep("preview");
-    },
-    [leads, resumeText, userConfig]
-  );
-
-  const handleGenerate = useCallback(() => {
-    runGeneration(0);
-  }, [runGeneration]);
-
-  const handlePause = useCallback(() => {
-    pauseRef.current = true;
-    // The loop will check this flag and stop after the current email finishes
-  }, []);
-
-  const handleResume = useCallback(() => {
-    // Find the first pending email to resume from
-    const resumeIdx = generatedEmails.findIndex(
-      (e) => e.status === "pending"
-    );
-    if (resumeIdx >= 0) {
-      runGeneration(resumeIdx);
+      }, 5000);
     }
-  }, [generatedEmails, runGeneration]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isGenerating, campaignId]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!userConfig) return;
+
+    setIsGenerating(true);
+    setPollingStatus({ generated: 0, failed: 0, total: leads.length, status: "DRAFT" });
+
+    try {
+      // 1. Create Campaign
+      const createRes = await fetch("/api/campaigns/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: `Campaign ${new Date().toLocaleDateString()}` }),
+      });
+      if (!createRes.ok) throw new Error("Failed to create campaign");
+      const campaign = await createRes.json();
+      const cId = campaign._id;
+      setCampaignId(cId);
+
+      // 2. Start Generation via Inngest
+      const startRes = await fetch("/api/campaign/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaignId: cId,
+          leads,
+          resumeText: useSavedResume ? userConfig.savedResume?.parsedText : resumeText,
+        }),
+      });
+
+      if (!startRes.ok) {
+        const errData = await startRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to start background generation");
+      }
+    } catch (error) {
+      console.error(error);
+      setIsGenerating(false);
+      alert(error instanceof Error ? error.message : "Failed to start campaign");
+    }
+  }, [leads, resumeText, userConfig, useSavedResume]);
+
+  const handleRequeueFailed = useCallback(async () => {
+    if (!campaignId || !userConfig) return;
+    try {
+      const res = await fetch("/api/campaign/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaignId,
+          leads: leads.filter((_, i) => generatedEmails[i]?.status === "failed"),
+          resumeText: useSavedResume ? userConfig.savedResume?.parsedText : resumeText,
+        }),
+      });
+      if (res.ok) setIsGenerating(true);
+    } catch (error) {
+      alert("Failed to re-queue");
+    }
+  }, [campaignId, leads, generatedEmails, resumeText, userConfig, useSavedResume]);
 
   // ── Send emails ──
   const handleSend = useCallback(async () => {
@@ -395,8 +373,6 @@ export default function NewCampaignPage() {
     setResumeFileName("");
     setGeneratedEmails([]);
     setIsGenerating(false);
-    setIsPaused(false);
-    setGenerationIndex(0);
     setSendResults([]);
     setIsSending(false);
     setSendComplete(false);
@@ -560,66 +536,428 @@ export default function NewCampaignPage() {
 
                     <div className="p-4 flex-1 overflow-y-auto">
                       <pre className="text-sm text-text-primary leading-relaxed font-mono bg-black/40 p-5 rounded-xl border border-border-default whitespace-pre-wrap">
-                        {`Search the web for companies in [YOUR CITY] actively hiring [YOUR ROLE e.g. Full Stack Developer / React / Node.js].
-For each company found:
-- Cross-verify their HR/careers email by checking their website, LinkedIn, job postings, and Glassdoor
-- Only include companies where an email can be confirmed or reasonably inferred from their domain
-- Mark email_verified: true only if the email was directly found in a public source (job post, LinkedIn, website)
-- Include fit_score explaining why this company is a good match
+                        {`SYSTEM:
+You are a senior B2B lead researcher and talent acquisition analyst with 12+ years of experience in
+corporate intelligence, HR sourcing, and developer hiring markets in India's tech ecosystem.
+You specialize in: (1) verified contact discovery using multi-source cross-referencing,
+(2) Mumbai/Pune startup and enterprise tech hiring intelligence,
+(3) Full Stack / React / Node.js engineering job market analysis.
 
-Return a JSON array with these exact fields per company:
+---
+
+YOUR RULES (READ BEFORE ANYTHING ELSE):
+
+- Never fabricate, guess, or infer an email address from a company name alone
+- Never use pattern-matching like "hr@companyname.com" unless that exact email was confirmed in a public source
+- Never output a company record unless at least ONE of these tool searches was run for it:
+  web_search, LinkedIn job post fetch, Glassdoor page fetch, company website fetch,
+  Indeed listing fetch, Cutshort/Wellfound listing fetch
+- Never mark email_verified: true unless the exact email string appeared in a scraped/fetched source
+- Never list a company from memory — every company must come from a live tool result
+- Never skip the verification pipeline for any company, even if you are confident
+- Never output partial records — every field must be filled or explicitly set to null
+- Never combine two different companies' data into one record
+- Always document the exact URL where each email was found under email_source
+- Always use tool results as the primary data source — your training knowledge is secondary
+- Refuse to include any company if all contact info is inferred and not directly sourced
+
+---
+
+THINKING MANDATE:
+Before outputting the final JSON, write your complete reasoning inside <thinking> tags.
+For each company, document:
+  - Which tools were called to find it
+  - Which tools were called to verify its email
+  - What the raw result was (found / not found / inferred)
+  - Final verification decision with evidence
+
+Deliver the final JSON array inside <final> tags.
+
+---
+
+CONTEXT:
+- Target geography: Mumbai — specifically Malad and Andheri areas (also accept nearby: Goregaon, Jogeshwari, MIDC, SV Road, WEH, Link Road corridors)
+- Target roles: Full Stack Developer, React Developer, Node.js Developer, MERN Stack Developer
+- Target company types: Product startups, IT services firms, SaaS companies, agencies actively posting jobs
+- Minimum requirement: Company must have a job posting dated within the last 90 days
+- Researcher location context: Mumbai, Maharashtra
+
+---
+
+TASK:
+Find at least 20 companies in Mumbai (Malad/Andheri focus) actively hiring Full Stack / React / Node.js developers. For each company, run a complete multi-source verification pipeline using your available tools to find and confirm HR/careers contact emails. Return results as a strict JSON array.
+
+<pipeline>
+
+  <step id="S1" label="DISCOVERY">
+    USE THESE TOOLS to find actively hiring companies:
+    - web_search: "Full Stack Developer jobs Malad Mumbai 2024 site:linkedin.com"
+    - web_search: "React Node.js developer hiring Andheri Mumbai Glassdoor"
+    - web_search: "MERN stack developer jobs Malad Andheri Mumbai Indeed"
+    - web_search: "Full Stack Developer Andheri Mumbai Cutshort"
+    - web_search: "Node.js React developer hiring Mumbai Wellfound"
+    - web_search: "software company Malad Andheri Mumbai hiring developer 2024"
+    Run ALL of the above. Collect company names, job post URLs, and posting dates.
+    NEVER rely on memory for this step — only tool results count.
+  </step>
+
+  <step id="S2" label="CONTACT VERIFICATION (run for EVERY company)">
+    For each company found in S1, run this exact verification pipeline in order:
+
+    CHECK 1 — Company website:
+      - web_fetch: company website homepage
+      - web_fetch: company_website.com/careers
+      - web_fetch: company_website.com/contact
+      - Look for: mailto: links, "careers@", "hr@", "jobs@", "talent@", contact forms with email
+      - If found: set email_verified: true, email_source: "[URL where found]"
+
+    CHECK 2 — LinkedIn job post:
+      - web_fetch: the LinkedIn job post URL found in S1
+      - web_search: "[Company Name] HR email LinkedIn Mumbai"
+      - Look for: "apply via email", recruiter email in post description, LinkedIn recruiter profile with email
+      - If found: set email_verified: true, email_source: "LinkedIn job post [URL]"
+
+    CHECK 3 — Glassdoor:
+      - web_search: "[Company Name] Glassdoor Mumbai HR contact email"
+      - web_fetch: Glassdoor company page if returned
+      - Look for: email in "About" section or interview reviews mentioning HR contact
+      - If found: set email_verified: true, email_source: "Glassdoor: [URL]"
+
+    CHECK 4 — Indeed:
+      - web_search: "[Company Name] Indeed Mumbai Full Stack Developer email"
+      - web_fetch: Indeed job listing URL if returned
+      - Look for: "send resume to [email]", employer contact details
+      - If found: set email_verified: true, email_source: "Indeed: [URL]"
+
+    CHECK 5 — Cutshort / Wellfound:
+      - web_search: "[Company Name] Cutshort contact email"
+      - web_search: "[Company Name] Wellfound hiring email"
+      - Look for: recruiter email, company bio with contact info
+      - If found: set email_verified: true, email_source: "Cutshort/Wellfound: [URL]"
+
+    CHECK 6 — General web sweep:
+      - web_search: "[Company Name] Mumbai HR email careers"
+      - web_search: "[Company Name] jobs apply email"
+      - Look for: press releases, job aggregators, GitHub org pages with contact info
+      - If found: set email_verified: true, email_source: "[URL]"
+
+    DECISION RULES:
+    - If email found in any check above → email_verified: true
+    - If no email found but a careers page or apply form exists → email_verified: false,
+      contact_email: null, note the apply URL in email_source
+    - If nothing found at all → email_verified: false, contact_email: null,
+      alt_email: null, email_source: "Not found after 6-step verification"
+    - NEVER write "hr@[domain]" or any guessed pattern as contact_email
+  </step>
+
+  <step id="S3" label="RECORD ASSEMBLY">
+    Assemble each verified company into this exact JSON schema:
+    {
+      "id": [sequential number],
+      "company": "[Exact legal/brand name from source]",
+      "location": "Mumbai, Maharashtra",
+      "area": "[Malad West / Malad East / Andheri West / Andheri East / Goregaon / etc.]",
+      "role": "[Exact job title from the job post]",
+      "description": "[2 sentences: what the company does + why they are hiring this role]",
+      "contact_email": "[confirmed email or null]",
+      "alt_email": "[second confirmed email or null]",
+      "website": "[domain.com — no https, no trailing slash]",
+      "type": "[Full-time / Contract / Freelance — from job post]",
+      "stack": ["[tech1]", "[tech2]", "[tech3]"],
+      "email_verified": [true / false],
+      "email_source": "[exact URL or 'Not found after 6-step verification']",
+      "fit_score": "[1 sentence: why this role matches a Full Stack React/Node.js developer]",
+      "status": "[Actively Hiring / Hiring / Open — based on post recency]"
+    }
+  </step>
+
+</pipeline>
+
+---
+
+FEW-SHOT EXAMPLE (Required reasoning depth):
+
+INPUT: Found "Bluebirds Tech Pvt Ltd" hiring React Developer in Andheri East on LinkedIn.
+
+REASONING:
+  - S1 source: LinkedIn job post URL linkedin.com/jobs/view/123456 — post dated 12 days ago ✓
+  - CHECK 1: Fetched bluebirdstech.com/careers — found "send your resume to careers@bluebirdstech.com" ✓
+  - CHECK 2: LinkedIn post says "Apply on site" — no email in post body
+  - Decision: email_verified: true — confirmed from company careers page
+  - fit_score: Hiring React + Node.js for SaaS dashboard product — direct stack match
+
+OUTPUT:
 {
-  "id": number,
-  "company": "Company Name",
-  "location": "City, State",
-  "area": "Specific area/district",
-  "role": "Exact role they are hiring for",
-  "description": "2-3 sentence company description and why they are hiring",
-  "contact_email": "primary email",
-  "alt_email": "backup email or null",
-  "website": "domain.com",
-  "type": "Full-time / Freelance / Contract",
-  "stack": ["Tech1", "Tech2"],
-  "email_verified": true/false,
-  "email_source": "Where this email was found",
-  "fit_score": "Why this is a good match for me",
-  "status": "Actively Hiring / Hiring / Open"
+  "id": 1,
+  "company": "Bluebirds Tech Pvt Ltd",
+  "location": "Mumbai, Maharashtra",
+  "area": "Andheri East",
+  "role": "React Developer",
+  "description": "Bluebirds Tech builds B2B SaaS dashboards for logistics companies. They are expanding their frontend team to handle new client integrations.",
+  "contact_email": "careers@bluebirdstech.com",
+  "alt_email": null,
+  "website": "bluebirdstech.com",
+  "type": "Full-time",
+  "stack": ["React", "Node.js", "MongoDB", "AWS"],
+  "email_verified": true,
+  "email_source": "https://bluebirdstech.com/careers — direct email in page text",
+  "fit_score": "Exact React + Node.js stack match; SaaS product work with real user scale",
+  "status": "Actively Hiring"
 }
 
-Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedIn, Cutshort, Wellfound, and company websites.`}
+---
+
+OUTPUT STRUCTURE:
+
+Deliver inside <final> tags in this order:
+
+<final>
+  <summary>
+    Total companies found: [N]
+    Email verified (true): [N]
+    Email not found: [N]
+    Search tools used: [list all web_search queries and web_fetch URLs called]
+  </summary>
+
+  <json_array>
+    [
+      { ... company record 1 ... },
+      { ... company record 2 ... },
+      ...
+    ]
+  </json_array>
+</final>
+
+---
+
+SELF-CHECK (run after generating all records, fix before delivering output):
+
+1. Does every company have a job post URL in the thinking block proving it was found via tool?
+2. Is every email_verified: true backed by an exact URL in email_source?
+3. Does any contact_email look like a guessed pattern (hr@, info@, [name]@domain)
+   without a source URL? → If yes, set to null and email_verified: false
+4. Are there any two records with the same company name? → Deduplicate
+5. Does every stack array contain at least 2 technologies from the actual job post?
+6. Is every "area" field a real Mumbai locality, not just "Mumbai"?
+7. Were at least 5 different tool queries run across S1 discovery?
+8. Were at least 3 verification checks run per company in S2?
+9. Are there at least 20 records total?
+10. Does the <summary> block list every search query and fetch URL actually called?
+If any check fails → fix the affected records before outputting <final>.`}
                       </pre>
                     </div>
 
                     <div className="p-4 border-t border-border-subtle bg-bg-elevated/50 flex justify-end">
                       <button
                         onClick={() => {
-                          const promptText = `Search the web for companies in [YOUR CITY] actively hiring [YOUR ROLE e.g. Full Stack Developer / React / Node.js].
-For each company found:
-- Cross-verify their HR/careers email by checking their website, LinkedIn, job postings, and Glassdoor
-- Only include companies where an email can be confirmed or reasonably inferred from their domain
-- Mark email_verified: true only if the email was directly found in a public source (job post, LinkedIn, website)
-- Include fit_score explaining why this company is a good match
+                          const promptText = `SYSTEM:
+You are a senior B2B lead researcher and talent acquisition analyst with 12+ years of experience in
+corporate intelligence, HR sourcing, and developer hiring markets in India's tech ecosystem.
+You specialize in: (1) verified contact discovery using multi-source cross-referencing,
+(2) Mumbai/Pune startup and enterprise tech hiring intelligence,
+(3) Full Stack / React / Node.js engineering job market analysis.
 
-Return a JSON array with these exact fields per company:
+---
+
+YOUR RULES (READ BEFORE ANYTHING ELSE):
+
+- Never fabricate, guess, or infer an email address from a company name alone
+- Never use pattern-matching like "hr@companyname.com" unless that exact email was confirmed in a public source
+- Never output a company record unless at least ONE of these tool searches was run for it:
+  web_search, LinkedIn job post fetch, Glassdoor page fetch, company website fetch,
+  Indeed listing fetch, Cutshort/Wellfound listing fetch
+- Never mark email_verified: true unless the exact email string appeared in a scraped/fetched source
+- Never list a company from memory — every company must come from a live tool result
+- Never skip the verification pipeline for any company, even if you are confident
+- Never output partial records — every field must be filled or explicitly set to null
+- Never combine two different companies' data into one record
+- Always document the exact URL where each email was found under email_source
+- Always use tool results as the primary data source — your training knowledge is secondary
+- Refuse to include any company if all contact info is inferred and not directly sourced
+
+---
+
+THINKING MANDATE:
+Before outputting the final JSON, write your complete reasoning inside <thinking> tags.
+For each company, document:
+  - Which tools were called to find it
+  - Which tools were called to verify its email
+  - What the raw result was (found / not found / inferred)
+  - Final verification decision with evidence
+
+Deliver the final JSON array inside <final> tags.
+
+---
+
+CONTEXT:
+- Target geography: Mumbai — specifically Malad and Andheri areas (also accept nearby: Goregaon, Jogeshwari, MIDC, SV Road, WEH, Link Road corridors)
+- Target roles: Full Stack Developer, React Developer, Node.js Developer, MERN Stack Developer
+- Target company types: Product startups, IT services firms, SaaS companies, agencies actively posting jobs
+- Minimum requirement: Company must have a job posting dated within the last 90 days
+- Researcher location context: Mumbai, Maharashtra
+
+---
+
+TASK:
+Find at least 20 companies in Mumbai (Malad/Andheri focus) actively hiring Full Stack / React / Node.js developers. For each company, run a complete multi-source verification pipeline using your available tools to find and confirm HR/careers contact emails. Return results as a strict JSON array.
+
+<pipeline>
+
+  <step id="S1" label="DISCOVERY">
+    USE THESE TOOLS to find actively hiring companies:
+    - web_search: "Full Stack Developer jobs Malad Mumbai 2024 site:linkedin.com"
+    - web_search: "React Node.js developer hiring Andheri Mumbai Glassdoor"
+    - web_search: "MERN stack developer jobs Malad Andheri Mumbai Indeed"
+    - web_search: "Full Stack Developer Andheri Mumbai Cutshort"
+    - web_search: "Node.js React developer hiring Mumbai Wellfound"
+    - web_search: "software company Malad Andheri Mumbai hiring developer 2024"
+    Run ALL of the above. Collect company names, job post URLs, and posting dates.
+    NEVER rely on memory for this step — only tool results count.
+  </step>
+
+  <step id="S2" label="CONTACT VERIFICATION (run for EVERY company)">
+    For each company found in S1, run this exact verification pipeline in order:
+
+    CHECK 1 — Company website:
+      - web_fetch: company website homepage
+      - web_fetch: company_website.com/careers
+      - web_fetch: company_website.com/contact
+      - Look for: mailto: links, "careers@", "hr@", "jobs@", "talent@", contact forms with email
+      - If found: set email_verified: true, email_source: "[URL where found]"
+
+    CHECK 2 — LinkedIn job post:
+      - web_fetch: the LinkedIn job post URL found in S1
+      - web_search: "[Company Name] HR email LinkedIn Mumbai"
+      - Look for: "apply via email", recruiter email in post description, LinkedIn recruiter profile with email
+      - If found: set email_verified: true, email_source: "LinkedIn job post [URL]"
+
+    CHECK 3 — Glassdoor:
+      - web_search: "[Company Name] Glassdoor Mumbai HR contact email"
+      - web_fetch: Glassdoor company page if returned
+      - Look for: email in "About" section or interview reviews mentioning HR contact
+      - If found: set email_verified: true, email_source: "Glassdoor: [URL]"
+
+    CHECK 4 — Indeed:
+      - web_search: "[Company Name] Indeed Mumbai Full Stack Developer email"
+      - web_fetch: Indeed job listing URL if returned
+      - Look for: "send resume to [email]", employer contact details
+      - If found: set email_verified: true, email_source: "Indeed: [URL]"
+
+    CHECK 5 — Cutshort / Wellfound:
+      - web_search: "[Company Name] Cutshort contact email"
+      - web_search: "[Company Name] Wellfound hiring email"
+      - Look for: recruiter email, company bio with contact info
+      - If found: set email_verified: true, email_source: "Cutshort/Wellfound: [URL]"
+
+    CHECK 6 — General web sweep:
+      - web_search: "[Company Name] Mumbai HR email careers"
+      - web_search: "[Company Name] jobs apply email"
+      - Look for: press releases, job aggregators, GitHub org pages with contact info
+      - If found: set email_verified: true, email_source: "[URL]"
+
+    DECISION RULES:
+    - If email found in any check above → email_verified: true
+    - If no email found but a careers page or apply form exists → email_verified: false,
+      contact_email: null, note the apply URL in email_source
+    - If nothing found at all → email_verified: false, contact_email: null,
+      alt_email: null, email_source: "Not found after 6-step verification"
+    - NEVER write "hr@[domain]" or any guessed pattern as contact_email
+  </step>
+
+  <step id="S3" label="RECORD ASSEMBLY">
+    Assemble each verified company into this exact JSON schema:
+    {
+      "id": [sequential number],
+      "company": "[Exact legal/brand name from source]",
+      "location": "Mumbai, Maharashtra",
+      "area": "[Malad West / Malad East / Andheri West / Andheri East / Goregaon / etc.]",
+      "role": "[Exact job title from the job post]",
+      "description": "[2 sentences: what the company does + why they are hiring this role]",
+      "contact_email": "[confirmed email or null]",
+      "alt_email": "[second confirmed email or null]",
+      "website": "[domain.com — no https, no trailing slash]",
+      "type": "[Full-time / Contract / Freelance — from job post]",
+      "stack": ["[tech1]", "[tech2]", "[tech3]"],
+      "email_verified": [true / false],
+      "email_source": "[exact URL or 'Not found after 6-step verification']",
+      "fit_score": "[1 sentence: why this role matches a Full Stack React/Node.js developer]",
+      "status": "[Actively Hiring / Hiring / Open — based on post recency]"
+    }
+  </step>
+
+</pipeline>
+
+---
+
+FEW-SHOT EXAMPLE (Required reasoning depth):
+
+INPUT: Found "Bluebirds Tech Pvt Ltd" hiring React Developer in Andheri East on LinkedIn.
+
+REASONING:
+  - S1 source: LinkedIn job post URL linkedin.com/jobs/view/123456 — post dated 12 days ago ✓
+  - CHECK 1: Fetched bluebirdstech.com/careers — found "send your resume to careers@bluebirdstech.com" ✓
+  - CHECK 2: LinkedIn post says "Apply on site" — no email in post body
+  - Decision: email_verified: true — confirmed from company careers page
+  - fit_score: Hiring React + Node.js for SaaS dashboard product — direct stack match
+
+OUTPUT:
 {
-  "id": number,
-  "company": "Company Name",
-  "location": "City, State",
-  "area": "Specific area/district",
-  "role": "Exact role they are hiring for",
-  "description": "2-3 sentence company description and why they are hiring",
-  "contact_email": "primary email",
-  "alt_email": "backup email or null",
-  "website": "domain.com",
-  "type": "Full-time / Freelance / Contract",
-  "stack": ["Tech1", "Tech2"],
-  "email_verified": true/false,
-  "email_source": "Where this email was found",
-  "fit_score": "Why this is a good match for me",
-  "status": "Actively Hiring / Hiring / Open"
+  "id": 1,
+  "company": "Bluebirds Tech Pvt Ltd",
+  "location": "Mumbai, Maharashtra",
+  "area": "Andheri East",
+  "role": "React Developer",
+  "description": "Bluebirds Tech builds B2B SaaS dashboards for logistics companies. They are expanding their frontend team to handle new client integrations.",
+  "contact_email": "careers@bluebirdstech.com",
+  "alt_email": null,
+  "website": "bluebirdstech.com",
+  "type": "Full-time",
+  "stack": ["React", "Node.js", "MongoDB", "AWS"],
+  "email_verified": true,
+  "email_source": "https://bluebirdstech.com/careers — direct email in page text",
+  "fit_score": "Exact React + Node.js stack match; SaaS product work with real user scale",
+  "status": "Actively Hiring"
 }
 
-Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedIn, Cutshort, Wellfound, and company websites.`;
+---
+
+OUTPUT STRUCTURE:
+
+Deliver inside <final> tags in this order:
+
+<final>
+  <summary>
+    Total companies found: [N]
+    Email verified (true): [N]
+    Email not found: [N]
+    Search tools used: [list all web_search queries and web_fetch URLs called]
+  </summary>
+
+  <json_array>
+    [
+      { ... company record 1 ... },
+      { ... company record 2 ... },
+      ...
+    ]
+  </json_array>
+</final>
+
+---
+
+SELF-CHECK (run after generating all records, fix before delivering output):
+
+1. Does every company have a job post URL in the thinking block proving it was found via tool?
+2. Is every email_verified: true backed by an exact URL in email_source?
+3. Does any contact_email look like a guessed pattern (hr@, info@, [name]@domain)
+   without a source URL? → If yes, set to null and email_verified: false
+4. Are there any two records with the same company name? → Deduplicate
+5. Does every stack array contain at least 2 technologies from the actual job post?
+6. Is every "area" field a real Mumbai locality, not just "Mumbai"?
+7. Were at least 5 different tool queries run across S1 discovery?
+8. Were at least 3 verification checks run per company in S2?
+9. Are there at least 20 records total?
+10. Does the <summary> block list every search query and fetch URL actually called?
+If any check fails → fix the affected records before outputting <final>.`;
                           navigator.clipboard.writeText(promptText);
                           setCopiedPrompt(true);
                           setTimeout(() => setCopiedPrompt(false), 2000);
@@ -660,10 +998,10 @@ Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedI
           </div>
 
           {leads.length > 0 && (
-            <CompanyTable 
-              leads={leads} 
-              onEdit={setEditingLead} 
-              onDelete={handleDeleteLead} 
+            <CompanyTable
+              leads={leads}
+              onEdit={setEditingLead}
+              onDelete={handleDeleteLead}
             />
           )}
 
@@ -680,8 +1018,8 @@ Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedI
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                
-                <form 
+
+                <form
                   className="p-4 flex flex-col gap-4"
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -698,46 +1036,46 @@ Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedI
                 >
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-text-secondary">Company Name</label>
-                    <input 
-                      name="company" 
-                      defaultValue={editingLead.company} 
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
-                      required 
+                    <input
+                      name="company"
+                      defaultValue={editingLead.company}
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
+                      required
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-text-secondary">Role</label>
-                    <input 
-                      name="role" 
-                      defaultValue={editingLead.role} 
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
-                      required 
+                    <input
+                      name="role"
+                      defaultValue={editingLead.role}
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
+                      required
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-text-secondary">Email</label>
-                    <input 
-                      name="contact_email" 
-                      defaultValue={editingLead.contact_email} 
+                    <input
+                      name="contact_email"
+                      defaultValue={editingLead.contact_email}
                       type="email"
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
-                      required 
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
+                      required
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-text-secondary">Stack (comma separated)</label>
-                    <input 
-                      name="stack" 
-                      defaultValue={(Array.isArray(editingLead.stack) ? editingLead.stack : [editingLead.stack]).filter(Boolean).join(", ")} 
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
+                    <input
+                      name="stack"
+                      defaultValue={(Array.isArray(editingLead.stack) ? editingLead.stack : [editingLead.stack]).filter(Boolean).join(", ")}
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-text-secondary">Fit Score</label>
-                    <input 
-                      name="fit_score" 
-                      defaultValue={editingLead.fit_score} 
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary" 
+                    <input
+                      name="fit_score"
+                      defaultValue={editingLead.fit_score}
+                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
                     />
                   </div>
                   <div className="pt-2 flex justify-end gap-2">
@@ -824,14 +1162,10 @@ Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedI
           </div>
 
           <GenerationProgress
-            emails={generatedEmails}
+            pollingStatus={pollingStatus}
             isGenerating={isGenerating}
-            isPaused={isPaused}
-            currentIndex={generationIndex}
-            totalCount={leads.length}
             onGenerate={handleGenerate}
-            onPause={handlePause}
-            onResume={handleResume}
+            onRequeueFailed={handleRequeueFailed}
           />
 
           {generatedEmails.length > 0 && !isGenerating && (
@@ -840,7 +1174,7 @@ Find at least 20 companies. Do deep web search across Indeed, Glassdoor, LinkedI
                 onClick={() => setCurrentStep("preview")}
                 className="group px-6 py-3 rounded-xl bg-accent-primary hover:bg-accent-primary-hover text-white font-medium transition-all flex items-center gap-2 shadow-sm"
               >
-                {generatedEmails.some(e => e.status === "pending") ? "Proceed with Generated Emails" : "Next: Review & Edit"}
+                Next: Review & Edit
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>
