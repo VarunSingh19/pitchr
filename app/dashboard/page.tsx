@@ -40,9 +40,9 @@ export default function DashboardPage() {
 
   const readiness = settings
     ? [
-        settings.apiKeysCount > 0,
-        settings.gmailConfigured,
-      ].filter(Boolean).length
+      settings.apiKeysCount > 0,
+      settings.gmailConfigured,
+    ].filter(Boolean).length
     : 0;
 
   return (
