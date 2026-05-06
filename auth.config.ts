@@ -22,7 +22,8 @@ export const authConfig = {
       const isProtected =
         nextUrl.pathname.startsWith("/dashboard") ||
         (nextUrl.pathname.startsWith("/api/") &&
-          !nextUrl.pathname.startsWith("/api/auth"));
+          !nextUrl.pathname.startsWith("/api/auth") &&
+          !nextUrl.pathname.startsWith("/api/inngest"));
 
       if (isProtected && !isLoggedIn) {
         return false; // Redirect to login
