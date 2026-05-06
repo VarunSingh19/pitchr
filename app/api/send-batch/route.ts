@@ -101,7 +101,7 @@ export async function POST(request: Request) {
           leadsCount: companyList.length,
           sentCount: 0,
           failedCount: 0,
-          status: "sending"
+          status: "SENDING"
         });
         await campaign.save();
 
@@ -134,6 +134,7 @@ export async function POST(request: Request) {
               campaignId: campaign._id,
               userId: user._id,
               companyName: company.company,
+              role: company.role,
               recipientEmail: company.contactEmail,
               subject: company.subject,
               body: company.body,
@@ -158,6 +159,7 @@ export async function POST(request: Request) {
               campaignId: campaign._id,
               userId: user._id,
               companyName: company.company,
+              role: company.role,
               recipientEmail: company.contactEmail,
               subject: company.subject,
               body: company.body,
@@ -182,7 +184,7 @@ export async function POST(request: Request) {
           }
         }
 
-        await Campaign.updateOne({ _id: campaign._id }, { status: "completed" });
+        await Campaign.updateOne({ _id: campaign._id }, { status: "COMPLETED" });
 
         // Final summary
         sendEvent({ type: "complete" });
