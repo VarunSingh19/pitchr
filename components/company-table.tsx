@@ -6,11 +6,12 @@ import type { Lead } from "@/lib/types";
 interface CompanyTableProps {
   leads: Lead[];
   alreadySent?: Set<string>;
+  invalidEmails?: Set<string>;
   onEdit?: (lead: Lead) => void;
   onDelete?: (lead: Lead) => void;
 }
 
-export function CompanyTable({ leads, alreadySent, onEdit, onDelete }: CompanyTableProps) {
+export function CompanyTable({ leads, alreadySent, invalidEmails, onEdit, onDelete }: CompanyTableProps) {
   return (
     <div className="rounded-2xl border border-border-default bg-bg-surface overflow-hidden">
       {/* Header */}
@@ -41,14 +42,17 @@ export function CompanyTable({ leads, alreadySent, onEdit, onDelete }: CompanyTa
           <tbody className="divide-y divide-border-default">
             {leads.slice(0, 50).map((lead, idx) => {
               const wasSent = alreadySent?.has(lead.contact_email?.toLowerCase());
+              const isInvalid = invalidEmails?.has(lead.contact_email?.toLowerCase());
 
               return (
                 <tr
                   key={lead.id ?? idx}
                   className={`transition-colors ${
-                    wasSent
-                      ? "bg-amber-500/5 hover:bg-amber-500/10"
-                      : "hover:bg-bg-elevated/50"
+                    isInvalid
+                      ? "bg-error/5 hover:bg-error/10"
+                      : wasSent
+                        ? "bg-amber-500/5 hover:bg-amber-500/10"
+                        : "hover:bg-bg-elevated/50"
                   }`}
                 >
                   <td className="px-5 py-3 font-medium text-text-primary">
@@ -87,7 +91,12 @@ export function CompanyTable({ leads, alreadySent, onEdit, onDelete }: CompanyTa
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    {wasSent ? (
+                    {isInvalid ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-error/10 text-error text-[10px] font-semibold uppercase tracking-wider">
+                        <AlertTriangle className="w-3 h-3" />
+                        Invalid Domain
+                      </span>
+                    ) : wasSent ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-400 text-[10px] font-semibold uppercase tracking-wider">
                         <AlertTriangle className="w-3 h-3" />
                         Already Sent

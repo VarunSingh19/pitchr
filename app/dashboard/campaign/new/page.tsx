@@ -59,6 +59,8 @@ export default function NewCampaignPage() {
   const [deletingLead, setDeletingLead] = useState<Lead | null>(null);
   const [alreadySent, setAlreadySent] = useState<Set<string>>(new Set());
   const [checkingSent, setCheckingSent] = useState(false);
+  const [invalidEmails, setInvalidEmails] = useState<Set<string>>(new Set());
+  const [isVerifying, setIsVerifying] = useState(false);
   const [autoSend, setAutoSend] = useState(false);
 
   const handleDeleteLead = useCallback((leadToDelete: Lead) => {
@@ -149,7 +151,7 @@ export default function NewCampaignPage() {
     userConfig.gmailConfigured &&
     userConfig.userName.trim().length > 0;
 
-  // ── Check which leads were already sent ──
+  // ── Check which leads were already sent & verify domains ──
   const checkAlreadySent = useCallback(async (leadsToCheck: Lead[]) => {
     const emails = leadsToCheck
       .map((l) => l.contact_email)
@@ -157,20 +159,35 @@ export default function NewCampaignPage() {
     if (emails.length === 0) return;
 
     setCheckingSent(true);
+    setIsVerifying(true);
     try {
-      const res = await fetch("/api/leads/check-sent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emails }),
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const [sentRes, verifyRes] = await Promise.all([
+        fetch("/api/leads/check-sent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emails }),
+        }).catch(() => null),
+        fetch("/api/leads/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emails }),
+        }).catch(() => null)
+      ]);
+
+      if (sentRes && sentRes.ok) {
+        const data = await sentRes.json();
         setAlreadySent(new Set((data.alreadySent || []).map((e: string) => e.toLowerCase())));
+      }
+      
+      if (verifyRes && verifyRes.ok) {
+        const data = await verifyRes.json();
+        setInvalidEmails(new Set((data.invalidEmails || []).map((e: string) => e.toLowerCase())));
       }
     } catch {
       // ignore — just won't show badges
     } finally {
       setCheckingSent(false);
+      setIsVerifying(false);
     }
   }, []);
 
@@ -180,11 +197,16 @@ export default function NewCampaignPage() {
     checkAlreadySent(parsedLeads);
   }, [checkAlreadySent]);
 
-  // ── Remove already-sent leads ──
+  // ── Remove already-sent and invalid leads ──
   const handleRemoveAlreadySent = useCallback(() => {
     setLeads((prev) => prev.filter((l) => !alreadySent.has(l.contact_email?.toLowerCase())));
     setAlreadySent(new Set());
   }, [alreadySent]);
+
+  const handleRemoveInvalid = useCallback(() => {
+    setLeads((prev) => prev.filter((l) => !invalidEmails.has(l.contact_email?.toLowerCase())));
+    setInvalidEmails(new Set());
+  }, [invalidEmails]);
 
   // ── Handle Resume upload ──
   const handleResumeUpload = useCallback(async (file: File) => {
@@ -245,8 +267,25 @@ export default function NewCampaignPage() {
   const handleGenerate = useCallback(async () => {
     if (!userConfig) return;
 
+    // Silently skip invalid and already-sent emails
+    const validLeads = leads.filter(l => 
+      !invalidEmails.has(l.contact_email?.toLowerCase()) && 
+      !alreadySent.has(l.contact_email?.toLowerCase())
+    );
+
+    const skippedCount = leads.length - validLeads.length;
+    if (skippedCount > 0) {
+      // Using standard alert as toast replacement for now since no toast library is imported
+      alert(`${skippedCount} invalid or previously sent emails were skipped.`);
+    }
+
+    if (validLeads.length === 0) {
+      alert("No valid leads left to generate emails for.");
+      return;
+    }
+
     setIsGenerating(true);
-    setPollingStatus({ generated: 0, failed: 0, total: leads.length, status: "DRAFT" });
+    setPollingStatus({ generated: 0, failed: 0, total: validLeads.length, status: "DRAFT" });
 
     try {
       // 1. Create Campaign
@@ -266,7 +305,7 @@ export default function NewCampaignPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           campaignId: cId,
-          leads,
+          leads: validLeads,
           resumeText: useSavedResume ? userConfig.savedResume?.parsedText : resumeText,
           autoSend,
         }),
@@ -281,7 +320,7 @@ export default function NewCampaignPage() {
       setIsGenerating(false);
       alert(error instanceof Error ? error.message : "Failed to start campaign");
     }
-  }, [leads, resumeText, userConfig, useSavedResume]);
+  }, [leads, resumeText, userConfig, useSavedResume, autoSend, invalidEmails, alreadySent]);
 
   const handleRequeueFailed = useCallback(async () => {
     if (!campaignId || !userConfig) return;
@@ -1031,9 +1070,8 @@ If any check fails → fix the affected records before outputting <final>.`;
 
           {leads.length > 0 && (
             <>
-              {/* Already-sent warning banner */}
               {alreadySent.size > 0 && (
-                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm animate-fade-in">
+                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm animate-fade-in mb-3">
                   <div className="flex items-center gap-2 text-amber-400">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                     <span>
@@ -1049,15 +1087,33 @@ If any check fails → fix the affected records before outputting <final>.`;
                   </button>
                 </div>
               )}
-              {checkingSent && (
-                <div className="flex items-center gap-2 text-xs text-text-faint">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Checking for previously contacted companies...
+              {invalidEmails.size > 0 && (
+                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-error/10 border border-error/20 text-sm animate-fade-in">
+                  <div className="flex items-center gap-2 text-error">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>
+                      <strong>{invalidEmails.size}</strong> {invalidEmails.size === 1 ? "email has" : "emails have"} invalid or missing domain MX records
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleRemoveInvalid}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-error/20 hover:bg-error/30 text-error text-xs font-medium transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Remove Invalid Leads
+                  </button>
                 </div>
               )}
+              {checkingSent || isVerifying ? (
+                <div className="flex items-center gap-2 text-xs text-text-faint">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Verifying domains and checking history...
+                </div>
+              ) : null}
               <CompanyTable
                 leads={leads}
                 alreadySent={alreadySent}
+                invalidEmails={invalidEmails}
                 onEdit={setEditingLead}
                 onDelete={handleDeleteLead}
               />
