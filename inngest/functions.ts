@@ -335,24 +335,11 @@ export const sendCompletionEmail = inngest.createFunction(
       const deliveredCount = Math.max(0, (campaign.sentCount || 0) - bouncedCount);
       const failedCount = campaign.failedCount || 0;
       const successRate = totalLeads > 0 ? Math.round((deliveredCount / totalLeads) * 100) : 0;
-      const appUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://pitchr.app";
+      const appUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://pitchrr-ai.vercel.app";
 
       const subject = `✅ Pitchr Campaign Complete — "${campaign.name}"`;
 
-      const body = `Hi ${user.name || "there"},
-
-Your campaign "${campaign.name}" has finished!
-
-📊 Results:
-• Total leads: ${totalLeads}
-• Sent successfully: ${deliveredCount}
-• Failed to send: ${failedCount}${bouncedCount > 0 ? `\n• Bounced back: ${bouncedCount}` : ""}
-• Success rate: ${successRate}%
-
-🔗 View full details:
-${appUrl}/dashboard/history/${campaignId}
-
-— Pitchr`;
+      const body = ` <div style="background:#f5f7fb;padding:40px 20px;font-family:Inter,Arial,sans-serif;"> <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 10px 30px rgba(0,0,0,0.06);"> <!-- Header --> <div style="background:#0f172a;padding:32px 40px;"> <h1 style="margin:0;font-size:28px;font-weight:700;color:#ffffff;"> Campaign Completed 🚀 </h1> <p style="margin:10px 0 0;color:#cbd5e1;font-size:15px;line-height:1.6;"> Your campaign "<strong>${campaign.name}</strong>" has finished processing successfully. </p> </div> <!-- Content --> <div style="padding:40px;"> <p style="margin:0 0 24px;font-size:16px;color:#111827;line-height:1.7;"> Hi ${user.name || "there"}, </p> <p style="margin:0 0 28px;font-size:15px;color:#4b5563;line-height:1.8;"> Here’s a quick overview of your campaign performance and delivery metrics. </p> <!-- Stats Card --> <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:24px;margin-bottom:32px;"> <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e7eb;"> <span style="color:#64748b;font-size:14px;">Total Leads</span> <span style="color:#0f172a;font-weight:600;">${totalLeads}</span> </div> <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e7eb;"> <span style="color:#64748b;font-size:14px;">Successfully Delivered</span> <span style="color:#16a34a;font-weight:600;">${deliveredCount}</span> </div> <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e7eb;"> <span style="color:#64748b;font-size:14px;">Failed Deliveries</span> <span style="color:#dc2626;font-weight:600;">${failedCount}</span> </div> ${bouncedCount > 0 ? ` <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e7eb;"> <span style="color:#64748b;font-size:14px;">Bounced Emails</span> <span style="color:#f59e0b;font-weight:600;">${bouncedCount}</span> </div> ` : ""} <div style="display:flex;justify-content:space-between;padding:12px 0 0;"> <span style="color:#64748b;font-size:14px;">Success Rate</span> <span style="color:#2563eb;font-weight:700;font-size:16px;"> ${successRate}% </span> </div> </div> <!-- CTA --> <div style="text-align:center;margin-bottom:32px;"> <a href="${appUrl}dashboard/history/${campaignId}" style=" display:inline-block; background:#111827; color:#ffffff; text-decoration:none; padding:14px 24px; border-radius:12px; font-size:15px; font-weight:600; " > View Campaign Report </a> </div> <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.7;"> You can review detailed analytics, delivery activity, and lead performance directly from your Pitchr dashboard. </p> </div> <!-- Footer --> <div style="padding:24px 40px;border-top:1px solid #e5e7eb;background:#fafafa;"> <p style="margin:0;font-size:13px;color:#9ca3af;"> © ${new Date().getFullYear()} Pitchr. All rights reserved. </p> </div> </div> </div> `;
 
       await transporter.sendMail({
         from: `Pitchr <${systemEmail}>`,

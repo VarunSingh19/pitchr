@@ -1,57 +1,152 @@
-# Pitchr Detailed API Documentation
+# Pitchr API Reference & Backend Documentation
 
-This document provides a comprehensive technical reference for the Pitchr backend. It covers all Next.js API routes, request/response structures, HTTP status codes, edge cases, and background event schemas.
-
-All API routes are located under `app/api/`.
-Unless specified otherwise, all routes require an active NextAuth session cookie (`role: "USER"` or `"ADMIN"`).
+Welcome to the definitive backend documentation for the Pitchr Cold Email Automation Platform. This document provides an exhaustive, route-by-route breakdown of the Next.js API ecosystem, Mongoose schemas, and Inngest background orchestration logic.
 
 ---
 
-## Table of Contents
+## 📑 Table of Contents
 
-1. [Authentication & Users](#1-authentication--users)
-2. [Campaigns & Generation](#2-campaigns--generation)
-3. [Email Dispatch & Inbox](#3-email-dispatch--inbox)
-4. [Administration](#4-administration)
-5. [Inngest Background Jobs](#5-inngest-background-jobs)
+1. [Architectural Overview & Standards](#1-architectural-overview--standards)
+2. [Database Schemas (Mongoose)](#2-database-schemas-mongoose)
+3. [Authentication & User Management APIs](#3-authentication--user-management-apis)
+4. [Campaign Lifecycle APIs](#4-campaign-lifecycle-apis)
+5. [SMTP Dispatch & IMAP Inbox APIs](#5-smtp-dispatch--imap-inbox-apis)
+6. [Administration & Routing APIs](#6-administration--routing-apis)
+7. [Inngest Background Event Payloads](#7-inngest-background-event-payloads)
 
 ---
 
-## 1. Authentication & Users
+## 1. Architectural Overview & Standards
+
+### Core Paradigms
+- **App Router:** All APIs reside in `app/api/[path]/route.ts` and export standard HTTP methods (`GET`, `POST`, `PUT`, `DELETE`).
+- **Authentication Wrapper:** Almost every route executes `const session = await auth();` at the beginning. If the session is missing, a `401 Unauthorized` response is immediately returned.
+- **Stateless Operation:** Next.js API routes are ephemeral. Stateful operations (like managing bulk dispatches or tracking generation steps) are strictly offloaded to Inngest via `inngest.send()`.
+- **Atomic Updates:** Whenever possible, metrics (e.g., `sentCount`, `bouncedCount`) are updated using MongoDB's `$inc` operator to prevent race conditions during concurrent webhook executions.
+
+### Response Conventions
+- **Success:** Returns HTTP `200 OK` with JSON payloads. Often includes `{ success: true }` alongside the data.
+- **Validation Errors:** Returns HTTP `400 Bad Request` with an `{ error: string }` message.
+- **Auth Errors:** Returns HTTP `401 Unauthorized` or `403 Forbidden` for role-based blocks.
+- **Server Errors:** Returns HTTP `500 Internal Server Error`, typically unwrapping `error.message`.
+
+---
+
+## 2. Database Schemas (Mongoose)
+
+Understanding the data layer is crucial for interacting with the APIs.
+
+### User Schema (`models/User.ts`)
+Manages authentication, global configuration, and encrypted credentials.
+```typescript
+{
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String }, // Hashed via bcrypt
+  role: { type: String, enum: ["USER", "ADMIN"], default: "USER" },
+  gmailConfig: {
+    address: { type: String },
+    appPassword: { type: String }, // AES-256 Encrypted
+    validated: { type: Boolean, default: false }
+  },
+  selectedModel: { type: String, default: "gemini-1.5-pro" },
+  apiKeys: {
+    openai: { type: String }, // AES-256 Encrypted
+    anthropic: { type: String }, // AES-256 Encrypted
+    gemini: { type: String }, // AES-256 Encrypted
+    deepseek: { type: String } // AES-256 Encrypted
+  },
+  resume: {
+    fileName: { type: String },
+    parsedText: { type: String },
+    base64Data: { type: String }
+  }
+}
+```
+
+### Campaign Schema (`models/Campaign.ts`)
+Acts as the parent aggregator for a batch of emails.
+```typescript
+{
+  userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  name: { type: String, required: true },
+  leadsCount: { type: Number, default: 0 },
+  sentCount: { type: Number, default: 0 },
+  failedCount: { type: Number, default: 0 },
+  bouncedCount: { type: Number, default: 0 },
+  totalLeads: { type: Number, default: 0 },
+  autoSend: { type: Boolean, default: false },
+  status: {
+    type: String,
+    enum: ["DRAFT", "GENERATING", "READY", "SENDING", "COMPLETED", "FAILED"],
+    default: "DRAFT"
+  }
+}
+```
+
+### EmailLog Schema (`models/EmailLog.ts`)
+The core unit of work. One document represents one email to one prospect.
+```typescript
+{
+  campaignId: { type: Schema.Types.ObjectId, ref: "Campaign", required: true },
+  userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  companyName: { type: String, required: true },
+  role: { type: String },
+  recipientEmail: { type: String, required: true },
+  subject: { type: String },
+  body: { type: String },
+  status: {
+    type: String,
+    enum: ["PENDING", "GENERATED", "QUEUED", "SENDING", "SENT", "FAILED", "BOUNCED"],
+    default: "PENDING"
+  },
+  messageId: { type: String }, // SMTP Message-ID (Critical for Threading/Bounces)
+  generationError: { type: String },
+  error: { type: String }
+}
+```
+
+---
+
+## 3. Authentication & User Management APIs
 
 ### `GET /api/user/settings`
-Fetches the authenticated user's profile settings, including their Gmail connection status and preferred LLM model.
-
-- **Auth Required:** Yes
-- **Success Response (200 OK):**
+**Purpose:** Hydrates the frontend user profile configuration context on dashboard load.
+- **Auth Level:** `USER`
+- **Business Logic:** Looks up the user by session email. Returns a sanitized object excluding password hashes and raw API keys.
+- **Success Response:**
   ```json
   {
     "gmailConfigured": true,
-    "gmailConfig": { "address": "user@gmail.com", "validated": true },
+    "gmailConfig": {
+      "address": "sales@pitchr.com",
+      "validated": true
+    },
     "selectedModel": "claude-3-opus-20240229",
-    "resume": { "fileName": "resume.pdf", "parsedText": "...", "base64Data": "..." }
+    "resume": {
+      "fileName": "Varun_Singh_Resume.pdf",
+      "parsedText": "Full Stack Engineer with 5 years...",
+      "base64Data": "JVBERi0xLjQKJcO..."
+    }
   }
   ```
-- **Error Responses:** `401 Unauthorized` (No session), `404 Not Found` (User missing in DB).
 
 ### `POST /api/user/settings`
-Updates the user's basic application settings.
-
-- **Auth Required:** Yes
-- **Request Body:**
-  ```json
-  {
-    "selectedModel": "gemini-1.5-pro"
+**Purpose:** Persists updates to basic settings, primarily the preferred LLM selection from the dropdown.
+- **Auth Level:** `USER`
+- **Request Payload:**
+  ```typescript
+  interface SettingsUpdate {
+    selectedModel?: string;
   }
   ```
-- **Success Response (200 OK):** `{ "success": true }`
-- **Error Responses:** `400 Bad Request` (Invalid payload), `500 Internal Server Error`.
+- **Business Logic:** Uses `User.updateOne()` to apply changes selectively.
 
 ### `GET /api/user/api-keys`
-Retrieves the user's custom LLM API keys. (Note: Keys are masked or verified before return; raw keys are heavily encrypted).
-
-- **Auth Required:** Yes
-- **Success Response (200 OK):**
+**Purpose:** Informs the UI which custom API keys the user has successfully registered.
+- **Auth Level:** `USER`
+- **Business Logic:** Checks the database for the existence of encrypted key strings. **Never returns the decrypted keys to the frontend.**
+- **Success Response:**
   ```json
   {
     "openAiKey": true,
@@ -62,224 +157,315 @@ Retrieves the user's custom LLM API keys. (Note: Keys are masked or verified bef
   ```
 
 ### `POST /api/user/api-keys`
-Saves or updates user-specific LLM API keys. Keys are passed to the `encrypt()` utility before persisting to MongoDB.
-
-- **Auth Required:** Yes
-- **Request Body:**
+**Purpose:** Registers new LLM API keys.
+- **Auth Level:** `USER`
+- **Request Payload:**
   ```json
   {
-    "openAiKey": "sk-...",
-    "anthropicKey": "sk-ant-...",
-    "geminiKey": "AIza...",
-    "deepseekKey": "sk-deep..."
+    "openAiKey": "sk-proj-...",
+    "anthropicKey": "sk-ant-api03-...",
+    "geminiKey": "AIzaSy...",
+    "deepseekKey": "sk-..."
   }
   ```
-- **Success Response (200 OK):** `{ "success": true }`
+- **Business Logic:** For each provided key, runs `encrypt(key)` from `lib/encryption.ts` using the AES-256 algorithm and the server `.env` key. Merges updates into `apiKeys` object.
 
 ### `POST /api/validate-gmail`
-Verifies a user's Gmail App Password by attempting an active IMAP connection using `imapflow`. If successful, the credentials are encrypted and stored.
-
-- **Auth Required:** Yes
-- **Request Body:**
+**Purpose:** Verifies that a user's Gmail App Password is correct before saving it, preventing silent delivery failures later.
+- **Auth Level:** `USER`
+- **Request Payload:**
   ```json
   {
     "email": "user@gmail.com",
     "appPassword": "abcd efgh ijkl mnop"
   }
   ```
-- **Success Response (200 OK):** `{ "success": true, "message": "Gmail verified and saved successfully" }`
-- **Error Responses:** `400 Bad Request` (Invalid credentials / IMAP connection failed).
+- **Business Logic:** 
+  1. Instantiates an `ImapFlow` client.
+  2. Attempts to `.connect()`.
+  3. If connection succeeds, runs `.logout()`.
+  4. Encrypts the `appPassword` and updates the user document: `gmailConfig: { address, appPassword: <encrypted>, validated: true }`.
+- **Edge Cases:** If the App Password is invalid, Google rejects the IMAP connection, throwing a specific Auth error. Returns HTTP `400` to the UI with `error: "Invalid Gmail credentials"`.
 
 ---
 
-## 2. Campaigns & Generation
+## 4. Campaign Lifecycle APIs
 
 ### `POST /api/campaigns/create`
-Initializes a new blank campaign in the database.
-
-- **Auth Required:** Yes
-- **Request Body:**
+**Purpose:** Initializes an empty shell for a new campaign batch.
+- **Auth Level:** `USER`
+- **Request Payload:**
   ```json
   {
-    "name": "Campaign May 9"
+    "name": "Mid-Level Software Engineer Campaign - May 2026"
   }
   ```
-- **Success Response (200 OK):** Returns the newly created Mongoose `Campaign` document.
-- **Edge Cases:** If `name` is omitted, returns `400 Bad Request`.
+- **Business Logic:** Instantiates a new `Campaign` document. Associates it tightly with the `userId`.
+- **Success Response:**
+  ```json
+  {
+    "_id": "663d2...",
+    "userId": "663c1...",
+    "name": "Mid-Level Software Engineer Campaign - May 2026",
+    "status": "DRAFT",
+    "leadsCount": 0,
+    ...
+  }
+  ```
 
 ### `POST /api/campaign/start`
-Triggers the background AI generation of emails for a campaign via Inngest. This offloads heavy LLM processing from the main Next.js thread.
-
-- **Auth Required:** Yes
-- **Request Body:**
-  ```json
-  {
-    "campaignId": "65b9a...",
-    "leads": [
-      { "company": "Acme Corp", "contact_email": "hr@acme.com", "role": "Engineer", ... }
-    ],
-    "resumeText": "Extracted text from PDF...",
-    "autoSend": true
+**Purpose:** The critical transition endpoint that passes control from the browser to the background Inngest orchestrator.
+- **Auth Level:** `USER`
+- **Request Payload:**
+  ```typescript
+  interface CampaignStartPayload {
+    campaignId: string;
+    leads: Array<{
+      company: string;
+      contact_email: string;
+      role: string;
+      description?: string;
+      stack?: string[];
+      fit_score?: string;
+    }>;
+    resumeText: string;
+    autoSend?: boolean;
   }
   ```
-- **Success Response (200 OK):** `{ "success": true, "queuedCount": 1 }`
-- **Side Effects:** Dispatches `N` events to Inngest (`campaign/generate.email`), where `N` is `leads.length`.
+- **Business Logic:**
+  1. Validates input array exists.
+  2. Looks up the Campaign by `_id`.
+  3. Maps the `leads` array into an array of Inngest event objects.
+  4. Executes `inngest.send(events)`.
+  5. Updates Campaign status to `"GENERATING"` and sets the `totalLeads` count.
+  6. **Data integrity:** Does NOT save the campaign state until *after* Inngest confirms receipt, preventing desyncs.
+- **Success Response:** `{ "success": true, "queuedCount": 20 }`
 
 ### `GET /api/campaigns/[id]/status`
-Polls the generation status of a specific campaign. Used by the UI progress bar.
-
-- **Auth Required:** Yes
-- **Success Response (200 OK):**
+**Purpose:** Lightweight polling endpoint for the UI to monitor generation progress.
+- **Auth Level:** `USER`
+- **Business Logic:** Runs an aggregation or multiple `countDocuments` queries against the `EmailLog` collection filtered by `campaignId`.
+- **Success Response:**
   ```json
   {
-    "generated": 15,
-    "failed": 2,
+    "generated": 18,
+    "failed": 0,
     "total": 20,
     "status": "GENERATING"
   }
   ```
-- **Edge Cases:** Returns `404 Not Found` if `campaignId` does not belong to the user.
 
 ### `GET /api/campaigns/[id]/emails`
-Retrieves all generated email drafts for a campaign so the user can review/edit them.
-
-- **Auth Required:** Yes
-- **Success Response (200 OK):** Array of populated `EmailLog` documents.
+**Purpose:** Fetches the fully generated email drafts for user review.
+- **Auth Level:** `USER`
+- **Business Logic:** `EmailLog.find({ campaignId }).lean()`. Returns the subject, body, recipient, and status.
 
 ### `POST /api/leads/check-sent`
-Cross-references a list of lead emails against the user's historical `EmailLog` to prevent duplicate outreach.
-
-- **Auth Required:** Yes
-- **Request Body:** `{ "emails": ["ceo@acme.com", "hr@tech.io"] }`
-- **Success Response (200 OK):** `{ "alreadySent": ["ceo@acme.com"] }`
+**Purpose:** The duplicate detection gatekeeper. Ensures we don't spam the same HR manager twice.
+- **Auth Level:** `USER`
+- **Request Payload:**
+  ```json
+  {
+    "emails": ["hr@companyA.com", "talent@companyB.com"]
+  }
+  ```
+- **Business Logic:**
+  Executes a MongoDB `$in` query:
+  `EmailLog.find({ userId, recipientEmail: { $in: emails }, status: { $in: ["SENT", "GENERATED"] } })`.
+- **Success Response:** Extracts only the overlapping emails and returns them: `{ "alreadySent": ["hr@companyA.com"] }`.
 
 ### `POST /api/parse-resume`
-Extracts raw text from a base64-encoded PDF resume using the `pdf-parse` module.
-
-- **Auth Required:** Yes
-- **Request Body:** `{ "fileBase64": "JVBERi0xLjQK..." }`
-- **Success Response (200 OK):** `{ "text": "John Doe\nSoftware Engineer..." }`
-- **Error Responses:** `400 Bad Request` (Invalid PDF buffer), `500 Internal Server Error` (Parsing failure).
+**Purpose:** OCR and text extraction utility for PDF parsing.
+- **Auth Level:** `USER`
+- **Business Logic:** Converts the incoming base64 payload to a Node `Buffer`. Passes the buffer to `pdf(buffer)` (from the `pdf-parse` library). Returns the raw `data.text` output.
 
 ---
 
-## 3. Email Dispatch & Inbox
+## 5. SMTP Dispatch & IMAP Inbox APIs
 
 ### `POST /api/send-batch`
-Executes manual batch sending using Server-Sent Events (SSE). Streams real-time progress to the UI.
-
-- **Auth Required:** Yes
+**Purpose:** Manages the manual (UI-driven) dispatch of a campaign batch via SMTP, streaming real-time status updates via SSE.
+- **Auth Level:** `USER`
 - **Headers:** `Accept: text/event-stream`
-- **Request Body:**
+- **Request Payload:**
   ```json
   {
     "companies": [
-      { "companyId": "1", "contactEmail": "hr@acme.com", "subject": "Hello", "body": "...", "company": "Acme Corp", "role": "Engineer" }
+      {
+        "companyId": "663d...",
+        "contactEmail": "hr@acme.com",
+        "subject": "Full Stack Engineer Application",
+        "body": "Hi team...",
+        "company": "Acme",
+        "role": "Engineer"
+      }
     ],
-    "resumeBase64": "...",
+    "resumeBase64": "JVBER...",
     "resumeFileName": "resume.pdf"
   }
   ```
-- **Rate Limiting:** Enforces a hard `await new Promise(r => setTimeout(r, 4000))` (4 seconds) between dispatches to prevent Gmail SMTP 421 Rate Limit errors.
-- **Side Effects:** Updates `EmailLog` (Status: SENT/FAILED). Updates `Campaign` counts. Triggers `campaign/verify.delivery` and `campaign/completed` Inngest events at the end.
+- **Business Logic Execution:**
+  1. Decrypts user's `appPassword`.
+  2. Instantiates Nodemailer Transporter. Runs `transporter.verify()`.
+  3. Opens SSE stream: `controller.enqueue(...)`.
+  4. Loops through `companies`:
+     a. Emits `{ type: "status", status: "sending", companyId: ... }`.
+     b. Executes `transporter.sendMail()`.
+     c. On success: Creates `EmailLog(status: SENT)`, saves `messageId` (CRITICAL for threading), increments `Campaign.sentCount`.
+     d. On failure: Creates `EmailLog(status: FAILED)`, increments `Campaign.failedCount`.
+     e. **Rate Limiting:** `await new Promise(r => setTimeout(r, 4000))` (Prevents 421 errors).
+  5. Updates Campaign status to `"COMPLETED"`.
+  6. Dispatches `campaign/verify.delivery` to Inngest.
+  7. Dispatches `campaign/completed` to Inngest.
+  8. Closes stream.
 
 ### `GET /api/inbox`
-Connects to Gmail via IMAP and fetches recent replies to emails dispatched through Pitchr. Uses `Message-ID` threading to match incoming emails to `EmailLog` records.
-
-- **Auth Required:** Yes
-- **Success Response (200 OK):**
-  ```json
-  [
-    {
-      "threadId": "18de...",
-      "companyName": "Acme Corp",
-      "latestReply": "...",
-      "replyDate": "2024-05-09T10:00:00Z"
-    }
-  ]
-  ```
+**Purpose:** Constructs a "Smart Inbox" by cross-referencing raw IMAP data with our proprietary `EmailLog` database.
+- **Auth Level:** `USER`
+- **Query Params:** `?page=1`
+- **Business Logic:**
+  1. Connects to `imap.gmail.com` via `imapflow`.
+  2. Selects `INBOX`.
+  3. Searches for emails `since` 7 days ago, excluding `mailer-daemon` (which are handles by verify jobs).
+  4. Iterates results, extracting raw source and parsing via `mailparser`.
+  5. Extracts the `In-Reply-To` header.
+  6. Executes `EmailLog.find({ messageId: { $in: extractedInReplyTos } })`.
+  7. Merges the inbound email data (date, snippet, body) with the Pitchr database context (Company Name, Original Role, Original Campaign).
+- **Success Response:** Array of enriched threads.
 
 ### `POST /api/inbox/sync`
-Manually forces an IMAP sync. Critically, this route parses the inbox for **Delivery Status Notifications (DSNs)** and Mailer-Daemon bounces.
-
-- **Auth Required:** Yes
-- **Logic Flow:**
-  1. Searches INBOX for last 14 days.
-  2. Parses `In-Reply-To` or `References` headers.
-  3. If sender is `mailer-daemon@googlemail.com` or subject contains "Delivery Status Notification", flags the associated `EmailLog` as `BOUNCED`.
-  4. Decrements `Campaign.sentCount` and increments `Campaign.bouncedCount` atomically.
-- **Success Response (200 OK):** `{ "success": true, "syncedReplies": 2, "bouncesDetected": 1 }`
+**Purpose:** Manual force-sync for the inbox, primarily executing the bounce-detection algorithm immediately instead of waiting for the 5-minute scheduled job.
+- **Auth Level:** `USER`
+- **Business Logic:**
+  Similar to the background verification job:
+  Searches IMAP for `[FROM: "mailer-daemon@googlemail.com", SUBJECT: "Delivery Status Notification"]`.
+  Parses the body to find the original `Message-ID`.
+  Transitions affected `EmailLog` records from `SENT` to `BOUNCED`.
+  Adjusts `Campaign` counters.
 
 ### `POST /api/generate-reply`
-Uses the LLM router to draft a contextual response to an incoming email thread.
-
-- **Auth Required:** Yes
-- **Request Body:**
+**Purpose:** Drafts an AI response to an ongoing email thread.
+- **Auth Level:** `USER`
+- **Request Payload:**
   ```json
   {
-    "emailThread": "Original: Hello\nReply: Thanks, but we need more info...",
-    "context": "Tell them I have 5 years of React experience."
+    "emailThread": "From HR: Thanks for reaching out. What is your expected salary?\n\nFrom Me: Hi HR...",
+    "context": "Tell them I am looking for $120k base."
   }
   ```
-- **Success Response (200 OK):** `{ "replyBody": "Hi, I'd be happy to clarify. I have 5 years..." }`
+- **Business Logic:** Feeds the system prompt, thread context, and user instructions into the LLM Router.
+- **Success Response:** `{ "replyBody": "Hi Team, Thanks for getting back to me. Regarding compensation..." }`
 
 ### `POST /api/send-reply`
-Dispatches an SMTP reply to an existing thread. Ensures the thread does not break in the recipient's inbox.
-
-- **Auth Required:** Yes
-- **Request Body:** `{ "to": "hr@acme.com", "subject": "Re: Application", "body": "...", "inReplyTo": "<orig-msg-id>", "references": ["<orig-msg-id>"] }`
+**Purpose:** Dispatches the response back to the prospect, ensuring it threads correctly in their email client.
+- **Auth Level:** `USER`
+- **Request Payload:**
+  ```json
+  {
+    "to": "hr@acme.com",
+    "subject": "Re: Application",
+    "body": "Hi Team...",
+    "inReplyTo": "<CABcdEFG@mail.gmail.com>",
+    "references": ["<CABcdEFG@mail.gmail.com>"]
+  }
+  ```
+- **Business Logic:** Standard Nodemailer dispatch, but explicitly overrides headers.
 
 ---
 
-## 4. Administration
+## 6. Administration & Routing APIs
 
-*These routes enforce an explicit `if (session.user.role !== "ADMIN") return 403 Forbidden` check.*
+*These routes are protected by a strict `if (session.user.role !== "ADMIN")` guard. Unauthorized access yields HTTP 403.*
 
 ### `GET /api/admin/api-keys`
-Fetches platform-wide fallback API keys stored in the database.
-
-- **Auth Required:** Yes (ADMIN)
-- **Response:** `{ "openAiKey": true, "geminiKey": false, ... }`
+**Purpose:** Retrieves system-wide fallback LLM keys (used when users have no keys or exceed quotas).
 
 ### `POST /api/admin/api-keys`
-Updates platform-wide fallback API keys. These keys are used when a standard user hasn't provided their own keys.
-
-- **Auth Required:** Yes (ADMIN)
-- **Request Body:** `{ "openAiKey": "sk-...", ... }`
-- **Success Response (200 OK):** `{ "success": true }`
+**Purpose:** Saves system-wide keys to the database, enforcing AES-256 encryption.
 
 ### `GET /api/models/available`
-Checks the health of the LLM Router. Returns a list of AI models that are currently available and not rate-limited.
-
-- **Auth Required:** Yes (ADMIN/USER)
-- **Response:** `{ "models": ["gemini-1.5-pro", "claude-3-opus", "gpt-4o"] }`
+**Purpose:** Router healthcheck. Evaluates which LLMs are currently active, valid, and not rate-limited.
+- **Business Logic:** Checks `AdminApiKeys` and `UserApiKeys`.
+- **Success Response:** `{ "models": ["gemini-1.5-pro", "claude-3-opus"] }`
 
 ---
 
-## 5. Inngest Background Jobs
+## 7. Inngest Background Event Payloads
 
-Pitchr relies heavily on `app/api/inngest/route.ts` to orchestrate background workloads.
+The Inngest API (`app/api/inngest/route.ts`) acts as the webhook receiver for Vercel/Inngest execution.
 
-### Event: `campaign/generate.email`
-- **Triggered By:** `POST /api/campaign/start`
-- **Function:** `generateSingleEmail`
-- **Payload:** `{ campaignId, lead, userId, resumeText, userName }`
-- **Action:** Calls `pooledGenerateEmailBody` and `pooledGenerateSubjectLine`. Fallbacks automatically on 429/500 errors. Saves to `EmailLog`. Checks if the campaign is fully generated; if so, and `autoSend` is true, triggers `campaign/auto-send`.
+### `campaign/generate.email`
+*The workhorse event for prompt execution.*
+**Data Schema:**
+```typescript
+{
+  campaignId: string;
+  userId: string;
+  userName: string;
+  resumeText: string;
+  lead: {
+    company: string;
+    contact_email: string;
+    role: string;
+    description: string;
+    stack: string[];
+    fit_score: string;
+  }
+}
+```
+**Flow:**
+- `step.run("upsert-email-log")`: Creates the `PENDING` DB record.
+- `step.run("generate-email-body")`: Calls LLM router.
+- `step.run("generate-subject-line")`: Calls LLM router.
+- `step.run("save-generated-email")`: Updates DB to `GENERATED`.
+- `step.run("check-campaign-complete")`: Checks if all leads are done. If `autoSend == true`, emits `campaign/auto-send`.
 
-### Event: `campaign/auto-send`
-- **Triggered By:** `generateSingleEmail` completion logic.
-- **Function:** `autoSendCampaign`
-- **Payload:** `{ campaignId, userId }`
-- **Action:** Fetches all `GENERATED` emails. Dispatches them sequentially via SMTP with a 4-second delay. Updates `Campaign.sentCount`. Triggers `campaign/completed` and `campaign/verify.delivery` when done.
+### `campaign/auto-send`
+*The background equivalent of `/api/send-batch`.*
+**Data Schema:**
+```typescript
+{
+  campaignId: string;
+  userId: string;
+}
+```
+**Flow:**
+- Fetches decrypted Gmail App password.
+- Fetches all `GENERATED` emails for the `campaignId`.
+- Loops with a strict `await sleep(4000)`.
+- Dispatches SMTP.
+- Updates DB.
+- Emits `verify.delivery` and `completed`.
 
-### Event: `campaign/completed`
-- **Triggered By:** `autoSendCampaign` or `POST /api/send-batch`.
-- **Function:** `sendCompletionEmail`
-- **Payload:** `{ campaignId, userId }`
-- **Action:** Uses the system `.env` Gmail account to send a branded summary email (Total, Sent, Failed, Bounced) to the user's personal inbox.
+### `campaign/verify.delivery`
+*The accuracy auditor.*
+**Data Schema:**
+```typescript
+{
+  campaignId: string;
+  userId: string;
+}
+```
+**Flow:**
+- **CRITICAL:** `await step.sleep("5m")` - Waits for bounces to arrive.
+- Connects to IMAP.
+- Searches for `mailer-daemon` messages.
+- Parses `In-Reply-To` headers.
+- Flips `SENT` -> `BOUNCED` in the database.
 
-### Event: `campaign/verify.delivery`
-- **Triggered By:** `autoSendCampaign` or `POST /api/send-batch`.
-- **Function:** `verifyDelivery`
-- **Payload:** `{ campaignId, userId }`
-- **Action:** Pauses via `step.sleep("5m")`. Connects to Gmail IMAP. Scans the last hour for `mailer-daemon` bounces. Updates `EmailLog` statuses to `BOUNCED` and fixes `Campaign` metrics.
+### `campaign/completed`
+*The notification dispatcher.*
+**Data Schema:**
+```typescript
+{
+  campaignId: string;
+  userId: string;
+}
+```
+**Flow:**
+- Extracts `GMAIL_USER` and `GMAIL_USER_PASSWORD` from environment variables (System Account).
+- Formats an HTML/Text summary of the campaign (Total, Sent, Failed, Bounced).
+- Dispatches to the User's personal email address.
+
+---
+*End of Technical Specification.*
