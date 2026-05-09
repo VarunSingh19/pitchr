@@ -339,13 +339,120 @@ export const sendCompletionEmail = inngest.createFunction(
 
       const subject = `✅ Pitchr Campaign Complete — "${campaign.name}"`;
 
-      const body = ` <div style="background:#f5f7fb;padding:40px 20px;font-family:Inter,Arial,sans-serif;"> <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 10px 30px rgba(0,0,0,0.06);"> <!-- Header --> <div style="background:#0f172a;padding:32px 40px;"> <h1 style="margin:0;font-size:28px;font-weight:700;color:#ffffff;"> Campaign Completed 🚀 </h1> <p style="margin:10px 0 0;color:#cbd5e1;font-size:15px;line-height:1.6;"> Your campaign "<strong>${campaign.name}</strong>" has finished processing successfully. </p> </div> <!-- Content --> <div style="padding:40px;"> <p style="margin:0 0 24px;font-size:16px;color:#111827;line-height:1.7;"> Hi ${user.name || "there"}, </p> <p style="margin:0 0 28px;font-size:15px;color:#4b5563;line-height:1.8;"> Here’s a quick overview of your campaign performance and delivery metrics. </p> <!-- Stats Card --> <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:24px;margin-bottom:32px;"> <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e7eb;"> <span style="color:#64748b;font-size:14px;">Total Leads</span> <span style="color:#0f172a;font-weight:600;">${totalLeads}</span> </div> <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e7eb;"> <span style="color:#64748b;font-size:14px;">Successfully Delivered</span> <span style="color:#16a34a;font-weight:600;">${deliveredCount}</span> </div> <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e7eb;"> <span style="color:#64748b;font-size:14px;">Failed Deliveries</span> <span style="color:#dc2626;font-weight:600;">${failedCount}</span> </div> ${bouncedCount > 0 ? ` <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e7eb;"> <span style="color:#64748b;font-size:14px;">Bounced Emails</span> <span style="color:#f59e0b;font-weight:600;">${bouncedCount}</span> </div> ` : ""} <div style="display:flex;justify-content:space-between;padding:12px 0 0;"> <span style="color:#64748b;font-size:14px;">Success Rate</span> <span style="color:#2563eb;font-weight:700;font-size:16px;"> ${successRate}% </span> </div> </div> <!-- CTA --> <div style="text-align:center;margin-bottom:32px;"> <a href="${appUrl}dashboard/history/${campaignId}" style=" display:inline-block; background:#111827; color:#ffffff; text-decoration:none; padding:14px 24px; border-radius:12px; font-size:15px; font-weight:600; " > View Campaign Report </a> </div> <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.7;"> You can review detailed analytics, delivery activity, and lead performance directly from your Pitchr dashboard. </p> </div> <!-- Footer --> <div style="padding:24px 40px;border-top:1px solid #e5e7eb;background:#fafafa;"> <p style="margin:0;font-size:13px;color:#9ca3af;"> © ${new Date().getFullYear()} Pitchr. All rights reserved. </p> </div> </div> </div> `;
+      const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campaign Completed</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05),0 2px 4px -1px rgba(0,0,0,0.03);border:1px solid #e2e8f0;">
+    
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);padding:40px 32px;text-align:center;">
+      <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,0.1);margin-bottom:20px;">
+        <span style="font-size:24px;">🚀</span>
+      </div>
+      <h1 style="margin:0;font-size:24px;font-weight:700;color:#f8fafc;letter-spacing:-0.025em;">Campaign Completed</h1>
+      <p style="margin:12px 0 0;color:#94a3b8;font-size:15px;">Your outreach campaign is ready for review.</p>
+    </div>
+
+    <!-- Content -->
+    <div style="padding:32px;">
+      <p style="margin:0 0 24px;font-size:16px;color:#334155;line-height:1.6;">
+        Hi <strong>${user.name || "there"}</strong>,
+      </p>
+      <p style="margin:0 0 32px;font-size:15px;color:#475569;line-height:1.6;">
+        Great news! We've successfully finished processing your campaign <strong>"${campaign.name}"</strong>. Here is your final performance report:
+      </p>
+
+      <!-- Stats Grid -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:24px;margin-bottom:32px;">
+        
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+          <tr>
+            <td width="50%" style="padding-bottom:20px;">
+              <p style="margin:0;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;font-weight:600;">Total Leads</p>
+              <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:#0f172a;">${totalLeads}</p>
+            </td>
+            <td width="50%" style="padding-bottom:20px;">
+              <p style="margin:0;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;font-weight:600;">Success Rate</p>
+              <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:#2563eb;">${successRate}%</p>
+            </td>
+          </tr>
+          <tr>
+            <td width="50%">
+              <p style="margin:0;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;font-weight:600;">Delivered</p>
+              <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:#16a34a;">${deliveredCount}</p>
+            </td>
+            <td width="50%">
+              <p style="margin:0;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;font-weight:600;">Failed</p>
+              <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:#dc2626;">${failedCount}</p>
+            </td>
+          </tr>
+        </table>
+        
+        ${bouncedCount > 0 ? `
+        <div style="border-top:1px solid #e2e8f0;padding-top:16px;margin-top:4px;">
+          <div style="display:inline-block;background:#fef3c7;color:#d97706;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;">
+            ⚠️ ${bouncedCount} email${bouncedCount === 1 ? '' : 's'} bounced back
+          </div>
+        </div>
+        ` : ''}
+        
+      </div>
+
+      <!-- Next Steps -->
+      <h3 style="margin:0 0 16px;font-size:18px;font-weight:600;color:#0f172a;">Next Steps</h3>
+      <p style="margin:0 0 32px;font-size:15px;color:#475569;line-height:1.6;">
+        Head over to your dashboard to review individual lead metrics, monitor your inbox for replies, and prepare your next outreach strategy.
+      </p>
+
+      <!-- CTA -->
+      <div style="text-align:center;">
+        <a href="${appUrl}/dashboard/history/${campaignId}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:0.025em;transition:background 0.2s;">
+          View Detailed Report
+        </a>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f8fafc;padding:24px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+      <p style="margin:0;font-size:13px;color:#64748b;">
+        You're receiving this because you enabled campaign notifications in Pitchr.
+      </p>
+      <p style="margin:8px 0 0;font-size:13px;color:#94a3b8;">
+        © ${new Date().getFullYear()} Pitchr Intelligence. All rights reserved.
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>`;
+
+      const textFallback = `Hi ${user.name || "there"},
+
+Your campaign "${campaign.name}" has finished!
+
+📊 Results:
+- Total leads: ${totalLeads}
+- Sent successfully: ${deliveredCount}
+- Failed to send: ${failedCount}${bouncedCount > 0 ? `\n- Bounced back: ${bouncedCount}` : ""}
+- Success rate: ${successRate}%
+
+🔗 View full details here:
+${appUrl}/dashboard/history/${campaignId}
+
+— Pitchr`;
 
       await transporter.sendMail({
-        from: `Pitchr <${systemEmail}>`,
+        from: `"Pitchr Notifications" <${systemEmail}>`,
         to: user.email,
         subject,
-        text: body,
+        text: textFallback,
+        html: htmlBody,
       });
     });
 
