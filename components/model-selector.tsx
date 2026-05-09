@@ -1,44 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Lock } from "lucide-react";
+import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  SUPPORTED_MODELS,
-  SUPPORTED_PROVIDERS,
-  getModelsByProvider,
-  type ProviderType,
-} from "@/lib/models-config";
+import { type ProviderType } from "@/lib/models-config";
 
-interface UserKeyInfo {
-  provider: string;
+interface AvailableModel {
+  id: string;
+  name: string;
+  provider: ProviderType;
+  description: string;
 }
 
 export function ModelSelector() {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [userKeyProviders, setUserKeyProviders] = useState<Set<string>>(
-    new Set()
-  );
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
 
-  // Fetch current model + user's API key providers
+  // Fetch current model + available models from system pool
   useEffect(() => {
     Promise.all([
       fetch("/api/user/settings").then((r) => r.json()),
-      fetch("/api/user/api-keys").then((r) => r.json()),
+      fetch("/api/models/available").then((r) => r.json()),
     ])
-      .then(([settings, keysData]) => {
-        setSelectedModel(
-          settings.selectedModel || SUPPORTED_MODELS[0].id
-        );
-        const providers = new Set<string>(
-          (keysData.keys || []).map((k: UserKeyInfo) => k.provider)
-        );
-        setUserKeyProviders(providers);
+      .then(([settings, modelsData]) => {
+        setSelectedModel(settings.selectedModel || "gemini-2.5-flash");
+        setAvailableModels(modelsData.models || []);
       })
       .catch(() => {
-        setSelectedModel(SUPPORTED_MODELS[0].id);
+        setSelectedModel("gemini-2.5-flash");
       })
       .finally(() => setLoading(false));
   }, []);
@@ -69,59 +60,68 @@ export function ModelSelector() {
     );
   }
 
+  // Group available models by provider
+  const providers = new Map<ProviderType, AvailableModel[]>();
+  for (const model of availableModels) {
+    const list = providers.get(model.provider) || [];
+    list.push(model);
+    providers.set(model.provider, list);
+  }
+
+  const providerNames: Record<ProviderType, string> = {
+    gemini: "Google Gemini",
+    nvidia: "NVIDIA NIM",
+    claude: "Anthropic Claude",
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Model Selection</h2>
         <p className="text-sm text-text-muted">
-          Choose the AI model for email generation. Models are grouped by
-          provider — add an API key in the API Keys tab to unlock a provider.
+          Choose the AI model for email generation. Available models are
+          managed by the system administrator.
         </p>
       </div>
 
-      {SUPPORTED_PROVIDERS.filter((p) => p.enabled).map((provider) => {
-        const models = getModelsByProvider(provider.id);
-        const hasKey = userKeyProviders.has(provider.id);
-
-        return (
-          <div key={provider.id} className="space-y-2">
+      {availableModels.length === 0 ? (
+        <div className="rounded-2xl border border-warning/20 bg-warning-dim p-5 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-warning flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-warning">No models available</p>
+            <p className="text-xs text-text-muted mt-0.5">
+              The system administrator hasn&apos;t configured any AI keys yet. Please check back later.
+            </p>
+          </div>
+        </div>
+      ) : (
+        Array.from(providers.entries()).map(([provider, models]) => (
+          <div key={provider} className="space-y-2">
             {/* Provider header */}
             <div className="flex items-center gap-2">
-              <ProviderBadge provider={provider.id} />
+              <ProviderBadge provider={provider} />
               <span className="text-sm font-semibold text-text-primary">
-                {provider.name}
+                {providerNames[provider]}
               </span>
-              {!hasKey && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-bg-elevated text-[10px] font-semibold text-text-faint uppercase tracking-wider">
-                  <Lock className="w-3 h-3" />
-                  No API Key
-                </span>
-              )}
-              {hasKey && (
-                <span className="px-2 py-0.5 rounded-md bg-success-dim text-success text-[10px] font-semibold uppercase tracking-wider">
-                  Active
-                </span>
-              )}
+              <span className="px-2 py-0.5 rounded-md bg-success-dim text-success text-[10px] font-semibold uppercase tracking-wider">
+                Available
+              </span>
             </div>
 
             {/* Model cards */}
             <div className="space-y-1.5">
               {models.map((model) => {
                 const isSelected = selectedModel === model.id;
-                const isDisabled = !hasKey;
 
                 return (
                   <button
                     key={model.id}
-                    onClick={() => !isDisabled && handleSelect(model.id)}
-                    disabled={isDisabled}
+                    onClick={() => handleSelect(model.id)}
                     className={cn(
                       "w-full flex items-center justify-between px-5 py-3.5 rounded-2xl border transition-all text-left",
                       isSelected
                         ? "border-accent-primary bg-accent-dim"
-                        : isDisabled
-                          ? "border-border-default bg-bg-surface opacity-50 cursor-not-allowed"
-                          : "border-border-default bg-bg-surface hover:bg-bg-elevated hover:border-border-subtle cursor-pointer"
+                        : "border-border-default bg-bg-surface hover:bg-bg-elevated hover:border-border-subtle cursor-pointer"
                     )}
                   >
                     <div>
@@ -129,11 +129,6 @@ export function ModelSelector() {
                         <span className="text-sm font-semibold">
                           {model.name}
                         </span>
-                        {model.isDefault && (
-                          <span className="px-2 py-0.5 rounded-md bg-bg-elevated text-[10px] font-semibold text-text-faint uppercase tracking-wider">
-                            Recommended
-                          </span>
-                        )}
                       </div>
                       <p className="text-xs text-text-muted mt-0.5">
                         {model.description}
@@ -151,27 +146,18 @@ export function ModelSelector() {
                         )}
                       </div>
                     )}
-                    {isDisabled && !isSelected && (
-                      <Lock className="w-4 h-4 text-text-faint flex-shrink-0 ml-4" />
-                    )}
                   </button>
                 );
               })}
             </div>
           </div>
-        );
-      })}
+        ))
+      )}
     </div>
   );
 }
 
 function ProviderBadge({ provider }: { provider: ProviderType }) {
-  const colors: Record<ProviderType, string> = {
-    gemini: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-    nvidia: "bg-green-500/15 text-green-400 border-green-500/30",
-    claude: "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  };
-
   return (
     <span
       className={cn(

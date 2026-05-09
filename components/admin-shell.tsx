@@ -5,39 +5,32 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  Mail,
+  Shield,
+  Key,
   LayoutDashboard,
-  PlusCircle,
-  History,
-  Inbox,
-  Settings,
   LogOut,
   ChevronLeft,
   ChevronRight,
   User as UserIcon,
-  Shield,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface DashboardShellProps {
+interface AdminShellProps {
   user: {
     name: string;
     email: string;
     image: string;
-    role?: string;
   };
   children: React.ReactNode;
 }
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/campaign/new", label: "New Campaign", icon: PlusCircle },
-  { href: "/dashboard/history", label: "History", icon: History },
-  { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/api-keys", label: "API Keys", icon: Key },
 ];
 
-export function DashboardShell({ user, children }: DashboardShellProps) {
+export function AdminShell({ user, children }: AdminShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -49,10 +42,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         setCollapsed(false);
       }
     };
-
-    // Initial check
     checkScreenSize();
-
     window.addEventListener("resize", checkScreenSize);
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
@@ -68,13 +58,13 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
       >
         {/* Logo */}
         <div className="h-16 flex items-center px-4 border-b border-border-default">
-          <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-lg bg-accent-primary flex items-center justify-center flex-shrink-0">
-              <Mail className="w-4 h-4 text-white" />
+          <Link href="/admin" className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+              <Shield className="w-4 h-4 text-orange-400" />
             </div>
             {!collapsed && (
               <span className="text-lg font-semibold tracking-tight whitespace-nowrap">
-                Pitchr
+                Admin Panel
               </span>
             )}
           </Link>
@@ -84,8 +74,8 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         <nav className="flex-1 py-4 px-3 space-y-1">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const isActive =
-              href === "/dashboard"
-                ? pathname === "/dashboard"
+              href === "/admin"
+                ? pathname === "/admin"
                 : pathname.startsWith(href);
 
             return (
@@ -95,36 +85,28 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
                   isActive
-                    ? "bg-accent-dim text-accent-primary"
+                    ? "bg-orange-500/10 text-orange-400"
                     : "text-text-muted hover:text-text-primary hover:bg-bg-elevated"
                 )}
                 title={collapsed ? label : undefined}
               >
-                <Icon className={cn("w-[18px] h-[18px] flex-shrink-0", isActive && "text-accent-primary")} />
+                <Icon className={cn("w-[18px] h-[18px] flex-shrink-0", isActive && "text-orange-400")} />
                 {!collapsed && <span className="truncate">{label}</span>}
               </Link>
             );
           })}
-        </nav>
 
-        {/* Admin link — only for admin users */}
-        {user.role === "admin" && (
-          <div className="px-3 pb-2">
+          <div className="!mt-4 pt-3 border-t border-border-default">
             <Link
-              href="/admin"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
-                pathname.startsWith("/admin")
-                  ? "bg-orange-500/10 text-orange-400"
-                  : "text-text-muted hover:text-text-primary hover:bg-bg-elevated"
-              )}
-              title={collapsed ? "Admin Panel" : undefined}
+              href="/dashboard"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-text-muted hover:text-text-primary hover:bg-bg-elevated transition-all"
+              title={collapsed ? "Back to Dashboard" : undefined}
             >
-              <Shield className={cn("w-[18px] h-[18px] flex-shrink-0", pathname.startsWith("/admin") && "text-orange-400")} />
-              {!collapsed && <span className="truncate">Admin Panel</span>}
+              <ArrowLeft className="w-[18px] h-[18px] flex-shrink-0" />
+              {!collapsed && <span>Back to Dashboard</span>}
             </Link>
           </div>
-        )}
+        </nav>
 
         {/* Collapse toggle */}
         <button

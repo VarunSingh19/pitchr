@@ -1,23 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Key, Cpu, Mail, FileText, ChevronDown } from "lucide-react";
+import { Mail, FileText, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ApiKeyManager } from "@/components/api-key-manager";
-import { ModelSelector } from "@/components/model-selector";
 import { GmailSettings } from "@/components/gmail-settings";
 import { ResumeSettings } from "@/components/resume-settings";
 
-type SettingsSection = "api-keys" | "gmail" | "resume";
+type SettingsSection = "gmail" | "resume";
 
 const SECTIONS = [
-  { key: "api-keys", label: "API Keys & Models", icon: Key, description: "Configure API keys and choose your generation model." },
   { key: "gmail", label: "Gmail Configuration", icon: Mail, description: "Set up your Gmail app password for sending emails." },
   { key: "resume", label: "Resume Configuration", icon: FileText, description: "Upload a persistent resume for all campaigns." },
 ] as const;
 
 export default function SettingsPage() {
-  const [openSection, setOpenSection] = useState<SettingsSection | null>("api-keys");
+  const [openSection, setOpenSection] = useState<SettingsSection | null>("gmail");
 
   const toggleSection = (section: SettingsSection) => {
     setOpenSection(openSection === section ? null : section);
@@ -28,7 +25,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold mb-1">Settings</h1>
         <p className="text-text-secondary text-sm">
-          Manage your credentials, AI model, and base resume.
+          Manage your credentials and base resume.
         </p>
       </div>
 
@@ -67,13 +64,6 @@ export default function SettingsPage() {
                 <div className="overflow-hidden">
                   <div className="p-5 pt-0 border-t border-border-default/50 mt-2">
                     <div className="pt-4">
-                      {key === "api-keys" && (
-                        <div className="space-y-8">
-                          <ApiKeyManager />
-                          <div className="h-px w-full bg-border-default" />
-                          <ModelSelector />
-                        </div>
-                      )}
                       {key === "gmail" && <GmailSettings />}
                       {key === "resume" && <ResumeSettings />}
                     </div>

@@ -1,9 +1,7 @@
-import { generateEmailBody, generateSubjectLine } from "@/lib/ai-client";
+import { pooledGenerateEmailBody, pooledGenerateSubjectLine } from "@/lib/ai-client";
 import { auth } from "@/auth";
 import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
-import { decrypt } from "@/lib/encryption";
-import { getProviderForModel } from "@/lib/models-config";
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get user's API key and model from MongoDB
+    // Get user's selected model from MongoDB — key comes from the system pool
     await dbConnect();
     const user = await User.findOne({ email: session.user.email });
 
@@ -30,33 +28,15 @@ export async function POST(request: Request) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
 
-    const modelName = user.selectedModel;
-    const provider = getProviderForModel(modelName);
-
-    // Find the API key matching the provider of the selected model
-    const matchingKey = user.apiKeys.find(
-      (k: { provider: string; isDefault: boolean }) => k.provider === provider && k.isDefault
-    ) || user.apiKeys.find(
-      (k: { provider: string }) => k.provider === provider
-    );
-
-    if (!matchingKey) {
-      return Response.json(
-        { error: `No ${provider?.toUpperCase()} API key configured for model "${modelName}". Add one in Settings.` },
-        { status: 400 }
-      );
-    }
-
-    // Decrypt the API key for the actual call
-    const decryptedKey = decrypt(matchingKey.key);
+    const modelId = user.selectedModel || "gemini-2.5-flash";
 
     // Normalize stack to string
     const stackStr = Array.isArray(company.stack)
       ? company.stack.join(", ")
       : company.stack || "Not specified";
 
-    // Generate email body
-    const body = await generateEmailBody(
+    // Generate email body using the system key pool
+    const body = await pooledGenerateEmailBody(
       {
         userName,
         resumeText,
@@ -66,18 +46,16 @@ export async function POST(request: Request) {
         stack: stackStr,
         fitScore: String(company.fit_score || ""),
       },
-      decryptedKey,
-      modelName
+      modelId
     );
 
-    // Generate subject line
-    const subject = await generateSubjectLine(
+    // Generate subject line using the system key pool
+    const subject = await pooledGenerateSubjectLine(
       company.company,
       company.role,
       stackStr,
       userName,
-      decryptedKey,
-      modelName
+      modelId
     );
 
     return Response.json({
@@ -87,6 +65,10 @@ export async function POST(request: Request) {
       status: "ready",
     });
   } catch (error) {
+    // If the pool is exhausted, return 503
+    if (error instanceof Error && (error as any).status === 503) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     return Response.json(
       { error: `Email generation failed: ${message}` },

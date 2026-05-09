@@ -4,18 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   PlusCircle,
-  Key,
   Mail,
   Sparkles,
   Settings,
   CheckCircle2,
   AlertCircle,
   ArrowRight,
-  Cpu,
 } from "lucide-react";
 
 interface UserSettings {
-  apiKeysCount: number;
   selectedModel: string;
   gmailConfigured: boolean;
 }
@@ -29,7 +26,6 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((data) => {
         setSettings({
-          apiKeysCount: data.apiKeysCount ?? 0,
           selectedModel: data.selectedModel ?? "gemini-2.5-flash",
           gmailConfigured: data.gmailConfigured ?? false,
         });
@@ -38,12 +34,7 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const readiness = settings
-    ? [
-      settings.apiKeysCount > 0,
-      settings.gmailConfigured,
-    ].filter(Boolean).length
-    : 0;
+  const isSetupComplete = settings?.gmailConfigured ?? false;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -56,40 +47,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid sm:grid-cols-3 gap-4">
-        {/* API Keys */}
-        <div className="rounded-2xl border border-border-default bg-bg-surface p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-accent-dim flex items-center justify-center">
-              <Key className="w-5 h-5 text-accent-primary" />
-            </div>
-            {!loading && settings && (
-              settings.apiKeysCount > 0 ? (
-                <CheckCircle2 className="w-4 h-4 text-success" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-warning" />
-              )
-            )}
-          </div>
-          <p className="text-2xl font-bold">
-            {loading ? "—" : settings?.apiKeysCount ?? 0}
-          </p>
-          <p className="text-xs text-text-muted mt-0.5">API Keys configured</p>
-        </div>
-
-        {/* Model */}
-        <div className="rounded-2xl border border-border-default bg-bg-surface p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-accent-dim flex items-center justify-center">
-              <Cpu className="w-5 h-5 text-accent-primary" />
-            </div>
-            <CheckCircle2 className="w-4 h-4 text-success" />
-          </div>
-          <p className="text-sm font-semibold truncate">
-            {loading ? "—" : settings?.selectedModel ?? "gemini-2.5-flash"}
-          </p>
-          <p className="text-xs text-text-muted mt-0.5">Selected model</p>
-        </div>
+      <div className="grid sm:grid-cols-1 gap-4 max-w-sm">
 
         {/* Gmail */}
         <div className="rounded-2xl border border-border-default bg-bg-surface p-5">
@@ -113,7 +71,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Setup prompt if incomplete */}
-      {!loading && readiness < 2 && (
+      {!loading && !isSetupComplete && (
         <div className="rounded-2xl border border-warning/20 bg-warning-dim p-5 flex items-start gap-4">
           <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
           <div>
@@ -121,7 +79,6 @@ export default function DashboardPage() {
               Complete your setup
             </h3>
             <p className="text-sm text-text-secondary">
-              {settings?.apiKeysCount === 0 && "Add a Gemini API key. "}
               {!settings?.gmailConfigured && "Configure your Gmail credentials. "}
               <Link href="/dashboard/settings" className="text-accent-primary hover:underline">
                 Go to Settings →
@@ -164,7 +121,7 @@ export default function DashboardPage() {
                 Manage Settings
               </p>
               <p className="text-xs text-text-faint">
-                API keys, model selection, Gmail config
+                Gmail config, resume
               </p>
             </div>
           </div>

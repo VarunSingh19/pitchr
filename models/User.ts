@@ -28,6 +28,8 @@ export interface IUser extends Document {
   email: string;
   emailVerified: Date | null;
   image: string;
+  role: "user" | "admin";
+  /** @deprecated — System-managed keys via SystemApiKey model. Stop reading/writing. Will be removed after migration. */
   apiKeys: IApiKey[];
   selectedModel: string;
   gmailConfig: IGmailConfig | null;
@@ -77,6 +79,8 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true },
     emailVerified: { type: Date, default: null },
     image: { type: String, default: "" },
+    role: { type: String, enum: ["user", "admin"], default: "user" },
+    /** @deprecated — Kept for backward compat. Do NOT read/write. Run migrate-remove-user-api-keys.js after confirming new system works. */
     apiKeys: { type: [ApiKeySchema], default: [] },
     selectedModel: { type: String, default: DEFAULT_MODEL.id },
     gmailConfig: { type: GmailConfigSchema, default: null },

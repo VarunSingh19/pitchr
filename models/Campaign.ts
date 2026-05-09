@@ -6,6 +6,8 @@ export interface ICampaign extends Document {
   leadsCount: number;
   sentCount: number;
   failedCount: number;
+  bouncedCount: number;
+  autoSend: boolean;
   status: "DRAFT" | "GENERATING" | "READY" | "SENDING" | "COMPLETED" | "FAILED";
   totalLeads: number;
   createdAt: Date;
@@ -19,6 +21,8 @@ const CampaignSchema = new Schema<ICampaign>(
     leadsCount: { type: Number, default: 0 },
     sentCount: { type: Number, default: 0 },
     failedCount: { type: Number, default: 0 },
+    bouncedCount: { type: Number, default: 0 },
+    autoSend: { type: Boolean, default: false },
     totalLeads: { type: Number, default: 0 },
     status: {
       type: String,

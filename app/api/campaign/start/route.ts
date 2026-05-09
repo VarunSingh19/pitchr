@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { campaignId, leads, resumeText } = await request.json();
+    const { campaignId, leads, resumeText, autoSend } = await request.json();
 
     if (!campaignId || !leads || !Array.isArray(leads) || leads.length === 0) {
       return Response.json({ error: "Missing required fields" }, { status: 400 });
@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     // 3. Update Campaign status ONLY after Inngest confirms receipt
     campaign.status = "GENERATING";
     campaign.totalLeads = leads.length;
+    campaign.autoSend = autoSend || false;
     await campaign.save();
 
     return Response.json({ success: true, queuedCount: leads.length });

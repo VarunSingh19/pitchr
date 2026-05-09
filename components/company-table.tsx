@@ -1,15 +1,16 @@
 "use client";
 
-import { Building2, Edit2, Trash2 } from "lucide-react";
+import { Building2, Edit2, Trash2, AlertTriangle } from "lucide-react";
 import type { Lead } from "@/lib/types";
 
 interface CompanyTableProps {
   leads: Lead[];
+  alreadySent?: Set<string>;
   onEdit?: (lead: Lead) => void;
   onDelete?: (lead: Lead) => void;
 }
 
-export function CompanyTable({ leads, onEdit, onDelete }: CompanyTableProps) {
+export function CompanyTable({ leads, alreadySent, onEdit, onDelete }: CompanyTableProps) {
   return (
     <div className="rounded-2xl border border-border-default bg-bg-surface overflow-hidden">
       {/* Header */}
@@ -33,76 +34,97 @@ export function CompanyTable({ leads, onEdit, onDelete }: CompanyTableProps) {
               <th className="px-5 py-3 font-medium">Email</th>
               <th className="px-5 py-3 font-medium">Stack</th>
               <th className="px-5 py-3 font-medium">Fit</th>
+              <th className="px-5 py-3 font-medium">Status</th>
               {(onEdit || onDelete) && <th className="px-5 py-3 font-medium text-right">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-border-default">
-            {leads.slice(0, 50).map((lead, idx) => (
-              <tr
-                key={lead.id ?? idx}
-                className="hover:bg-bg-elevated/50 transition-colors"
-              >
-                <td className="px-5 py-3 font-medium text-text-primary">
-                  {lead.company}
-                </td>
-                <td className="px-5 py-3 text-text-secondary">{lead.role}</td>
-                <td className="px-5 py-3 text-text-secondary font-mono text-xs">
-                  {lead.contact_email}
-                </td>
-                <td className="px-5 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {(Array.isArray(lead.stack) ? lead.stack : [lead.stack])
-                      .filter(Boolean)
-                      .slice(0, 3)
-                      .map((tech) => (
-                        <span
-                          key={String(tech)}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-bg-subtle text-text-muted border border-border-default"
-                        >
-                          {String(tech)}
-                        </span>
-                      ))}
-                  </div>
-                </td>
-                <td className="px-5 py-3">
-                  <span
-                    className={`text-xs font-medium ${
-                      String(lead.fit_score).toLowerCase().includes("high")
-                        ? "text-success"
-                        : String(lead.fit_score).toLowerCase().includes("medium")
-                          ? "text-warning"
-                          : "text-text-muted"
-                    }`}
-                  >
-                    {lead.fit_score || "—"}
-                  </span>
-                </td>
-                {(onEdit || onDelete) && (
-                  <td className="px-5 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {onEdit && (
-                        <button
-                          onClick={() => onEdit(lead)}
-                          className="p-1.5 rounded-lg text-text-muted hover:text-accent-primary hover:bg-accent-dim transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      )}
-                      {onDelete && (
-                        <button
-                          onClick={() => onDelete(lead)}
-                          className="p-1.5 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+            {leads.slice(0, 50).map((lead, idx) => {
+              const wasSent = alreadySent?.has(lead.contact_email?.toLowerCase());
+
+              return (
+                <tr
+                  key={lead.id ?? idx}
+                  className={`transition-colors ${
+                    wasSent
+                      ? "bg-amber-500/5 hover:bg-amber-500/10"
+                      : "hover:bg-bg-elevated/50"
+                  }`}
+                >
+                  <td className="px-5 py-3 font-medium text-text-primary">
+                    {lead.company}
+                  </td>
+                  <td className="px-5 py-3 text-text-secondary">{lead.role}</td>
+                  <td className="px-5 py-3 text-text-secondary font-mono text-xs">
+                    {lead.contact_email}
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {(Array.isArray(lead.stack) ? lead.stack : [lead.stack])
+                        .filter(Boolean)
+                        .slice(0, 3)
+                        .map((tech) => (
+                          <span
+                            key={String(tech)}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-bg-subtle text-text-muted border border-border-default"
+                          >
+                            {String(tech)}
+                          </span>
+                        ))}
                     </div>
                   </td>
-                )}
-              </tr>
-            ))}
+                  <td className="px-5 py-3">
+                    <span
+                      className={`text-xs font-medium ${
+                        String(lead.fit_score).toLowerCase().includes("high")
+                          ? "text-success"
+                          : String(lead.fit_score).toLowerCase().includes("medium")
+                            ? "text-warning"
+                            : "text-text-muted"
+                      }`}
+                    >
+                      {lead.fit_score || "—"}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    {wasSent ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-400 text-[10px] font-semibold uppercase tracking-wider">
+                        <AlertTriangle className="w-3 h-3" />
+                        Already Sent
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-success-dim text-success text-[10px] font-semibold uppercase tracking-wider">
+                        New
+                      </span>
+                    )}
+                  </td>
+                  {(onEdit || onDelete) && (
+                    <td className="px-5 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {onEdit && (
+                          <button
+                            onClick={() => onEdit(lead)}
+                            className="p-1.5 rounded-lg text-text-muted hover:text-accent-primary hover:bg-accent-dim transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            onClick={() => onDelete(lead)}
+                            className="p-1.5 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

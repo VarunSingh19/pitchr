@@ -5,6 +5,7 @@ import User from "@/models/User";
 import Campaign from "@/models/Campaign";
 import EmailLog from "@/models/EmailLog";
 import { decrypt } from "@/lib/encryption";
+import { inngest } from "@/inngest/client";
 
 interface CompanyPayload {
   companyId: string | number;
@@ -185,6 +186,28 @@ export async function POST(request: Request) {
         }
 
         await Campaign.updateOne({ _id: campaign._id }, { status: "COMPLETED" });
+
+        // Fire delivery verification job (runs after 5 min delay via Inngest)
+        try {
+          await inngest.send({
+            name: "campaign/verify.delivery",
+            data: {
+              campaignId: campaign._id.toString(),
+              userId: user._id.toString(),
+            },
+          });
+          
+          await inngest.send({
+            name: "campaign/completed",
+            data: {
+              campaignId: campaign._id.toString(),
+              userId: user._id.toString(),
+            },
+          });
+        } catch {
+          // Non-critical — verification will be caught by inbox sync later
+          console.warn("[send-batch] Failed to queue post-send jobs");
+        }
 
         // Final summary
         sendEvent({ type: "complete" });

@@ -3,6 +3,7 @@ import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
 import EmailLog from "@/models/EmailLog";
 import Reply from "@/models/Reply";
+import Campaign from "@/models/Campaign";
 import { decrypt } from "@/lib/encryption";
 
 export async function POST() {
@@ -90,14 +91,26 @@ export async function POST() {
         const isBounce = 
           parsed.from?.value[0]?.address?.includes('mailer-daemon') ||
           parsed.subject?.toLowerCase().includes('delivery status notification') ||
-          parsed.subject?.toLowerCase().includes('undeliverable');
+          parsed.subject?.toLowerCase().includes('undeliverable') ||
+          parsed.subject?.toLowerCase().includes('delivery incomplete') ||
+          parsed.subject?.toLowerCase().includes('mail delivery failed') ||
+          parsed.subject?.toLowerCase().includes('returned mail') ||
+          parsed.headers?.get('content-type')?.includes('delivery-status');
 
         if (isBounce) {
-          // Update EmailLog to BOUNCED
-          await EmailLog.updateOne(
-            { messageId: match.inReplyTo },
+          // Update EmailLog to BOUNCED (only if currently SENT to prevent double-counting)
+          const bounceUpdate = await EmailLog.updateOne(
+            { messageId: match.inReplyTo, status: "SENT" },
             { $set: { status: "BOUNCED", error: "Delivery Status Notification (Failure)" } }
           );
+
+          // If we actually changed the status, update Campaign counts too
+          if (bounceUpdate.modifiedCount > 0 && log?.campaignId) {
+            await Campaign.updateOne(
+              { _id: log.campaignId },
+              { $inc: { sentCount: -1, bouncedCount: 1 } }
+            );
+          }
           
           // Delete it from Reply collection if it was accidentally saved before
           await Reply.deleteOne({ imapUid: match.uid.toString() });

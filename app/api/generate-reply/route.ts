@@ -1,8 +1,7 @@
 import { auth } from "@/auth";
 import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
-import { generateReply } from "@/lib/ai-client";
-import { decrypt } from "@/lib/encryption";
+import { pooledGenerateReply } from "@/lib/ai-client";
 
 export async function POST(request: Request) {
   try {
@@ -23,26 +22,21 @@ export async function POST(request: Request) {
       return Response.json({ error: "Resume not found. Please upload it in settings." }, { status: 400 });
     }
 
-    // Determine the user's selected provider and API key
-    const modelId = user.selectedModel || "gemini-1.5-flash";
-    const provider = modelId.startsWith("meta/") || modelId.startsWith("mistral/") ? "nvidia" : "gemini";
-    
-    const keyRecord = user.apiKeys?.find((k: any) => k.provider === provider && k.isDefault);
-    if (!keyRecord) {
-      return Response.json({ error: `Please configure a default API key for ${provider}` }, { status: 400 });
-    }
+    // Use the user's selected model — key comes from the system pool
+    const modelId = user.selectedModel || "gemini-2.5-flash";
 
-    const apiKey = decrypt(keyRecord.key);
-
-    const generatedReply = await generateReply(
+    const generatedReply = await pooledGenerateReply(
       emailText,
       user.resume.parsedText,
-      modelId,
-      apiKey
+      modelId
     );
 
     return Response.json({ reply: generatedReply });
   } catch (error) {
+    // If the pool is exhausted, return 503
+    if (error instanceof Error && (error as any).status === 503) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     return Response.json({ error: `Failed to generate reply: ${message}` }, { status: 500 });
   }

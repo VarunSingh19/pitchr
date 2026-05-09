@@ -806,3 +806,104 @@ export async function generateReply(
 
   return raw.trim();
 }
+
+// ═══════════════════════════════════════════
+// POOL-AWARE PUBLIC API
+// Uses the LLM Router for automatic key selection & 429 failover.
+// These are the functions that API routes and Inngest jobs should use.
+// ═══════════════════════════════════════════
+
+import { getAvailableKey, markRateLimited } from "@/lib/llm-router";
+
+/**
+ * Internal helper: execute an AI call with pool-based key selection and
+ * automatic retry on 429 (rate limit). On 429, the exhausted key is
+ * sidelined and the next available key from the pool is tried.
+ */
+async function pooledCall<T>(
+  modelId: string,
+  fn: (apiKey: string, model: string) => Promise<T>,
+  maxRetries = 3
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const pooled = await getAvailableKey(modelId);
+
+    try {
+      return await fn(pooled.key, pooled.modelId);
+    } catch (error) {
+      // If the pool itself is exhausted (503), rethrow immediately
+      // so Inngest can retry after backoff when keys become available
+      if (error instanceof Error && (error as any).status === 503) {
+        throw error;
+      }
+
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Check if it's a rate limit (429) error
+      const is429 =
+        lastError.message.includes("429") ||
+        lastError.message.toLowerCase().includes("rate limit") ||
+        lastError.message.toLowerCase().includes("resource exhausted") ||
+        lastError.message.toLowerCase().includes("quota");
+
+      if (is429) {
+        // Parse retry-after if available, default 60s
+        const retryMatch = lastError.message.match(/retry after (\d+)/i);
+        const retryAfterMs = retryMatch
+          ? parseInt(retryMatch[1], 10) * 1000
+          : 60_000;
+
+        await markRateLimited(pooled.keyId, retryAfterMs);
+        console.warn(
+          `[ai-client] Key ${pooled.keyId} hit 429, trying next key (attempt ${attempt + 1}/${maxRetries})`
+        );
+        continue; // Try next key from pool
+      }
+
+      // Non-429 errors: retry with backoff
+      if (attempt < maxRetries - 1) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.pow(2, attempt) * 1000)
+        );
+      }
+    }
+  }
+
+  throw lastError || new Error("All pooled retry attempts failed");
+}
+
+/** Generate email body using a key from the system pool */
+export async function pooledGenerateEmailBody(
+  params: GenerateEmailParams,
+  modelId: string
+): Promise<string> {
+  return pooledCall(modelId, async (apiKey, model) => {
+    return generateEmailBody(params, apiKey, model);
+  });
+}
+
+/** Generate subject line using a key from the system pool */
+export async function pooledGenerateSubjectLine(
+  company: string,
+  role: string,
+  stack: string,
+  userName: string,
+  modelId: string
+): Promise<string> {
+  return pooledCall(modelId, async (apiKey, model) => {
+    return generateSubjectLine(company, role, stack, userName, apiKey, model);
+  });
+}
+
+/** Generate reply using a key from the system pool */
+export async function pooledGenerateReply(
+  emailText: string,
+  resumeText: string,
+  modelId: string
+): Promise<string> {
+  return pooledCall(modelId, async (apiKey, model) => {
+    return generateReply(emailText, resumeText, model, apiKey);
+  });
+}

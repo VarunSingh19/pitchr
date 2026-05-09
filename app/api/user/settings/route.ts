@@ -16,7 +16,6 @@ export async function GET() {
 
   if (!user) {
     return Response.json({
-      apiKeysCount: 0,
       selectedModel: "gemini-2.5-flash",
       gmailConfigured: false,
       gmailConfig: null,
@@ -24,7 +23,6 @@ export async function GET() {
   }
 
   return Response.json({
-    apiKeysCount: user.apiKeys?.length ?? 0,
     selectedModel: user.selectedModel,
     gmailConfigured: user.gmailConfig?.validated ?? false,
     gmailConfig: user.gmailConfig

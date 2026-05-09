@@ -21,6 +21,7 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isProtected =
         nextUrl.pathname.startsWith("/dashboard") ||
+        nextUrl.pathname.startsWith("/admin") ||
         (nextUrl.pathname.startsWith("/api/") &&
           !nextUrl.pathname.startsWith("/api/auth") &&
           !nextUrl.pathname.startsWith("/api/inngest"));

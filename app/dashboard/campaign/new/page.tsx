@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2, Copy, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2, Copy, X, AlertTriangle } from "lucide-react";
 import type { Lead, GeneratedEmail, SendResult } from "@/lib/types";
 import { FileUpload } from "@/components/file-upload";
 import { CompanyTable } from "@/components/company-table";
@@ -24,7 +24,6 @@ interface UserConfig {
   userName: string;
   gmailConfigured: boolean;
   gmailAddress: string;
-  apiKeysCount: number;
   selectedModel: string;
   savedResume: {
     fileName: string;
@@ -58,6 +57,9 @@ export default function NewCampaignPage() {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [deletingLead, setDeletingLead] = useState<Lead | null>(null);
+  const [alreadySent, setAlreadySent] = useState<Set<string>>(new Set());
+  const [checkingSent, setCheckingSent] = useState(false);
+  const [autoSend, setAutoSend] = useState(false);
 
   const handleDeleteLead = useCallback((leadToDelete: Lead) => {
     setDeletingLead(leadToDelete);
@@ -127,7 +129,6 @@ export default function NewCampaignPage() {
           userName: session?.user?.name || "",
           gmailConfigured: data.gmailConfigured ?? false,
           gmailAddress: data.gmailConfig?.address || "",
-          apiKeysCount: data.apiKeysCount ?? 0,
           selectedModel: data.selectedModel || "",
           savedResume: data.resume || null,
         });
@@ -145,14 +146,45 @@ export default function NewCampaignPage() {
     leads.length > 0 &&
     userConfig !== null &&
     (useSavedResume ? !!userConfig.savedResume : (resumeText.length > 0 && (resumeFile !== null || draftRestored))) &&
-    userConfig.apiKeysCount > 0 &&
     userConfig.gmailConfigured &&
     userConfig.userName.trim().length > 0;
+
+  // ── Check which leads were already sent ──
+  const checkAlreadySent = useCallback(async (leadsToCheck: Lead[]) => {
+    const emails = leadsToCheck
+      .map((l) => l.contact_email)
+      .filter(Boolean);
+    if (emails.length === 0) return;
+
+    setCheckingSent(true);
+    try {
+      const res = await fetch("/api/leads/check-sent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAlreadySent(new Set((data.alreadySent || []).map((e: string) => e.toLowerCase())));
+      }
+    } catch {
+      // ignore — just won't show badges
+    } finally {
+      setCheckingSent(false);
+    }
+  }, []);
 
   // ── Handle JSON upload ──
   const handleJsonUpload = useCallback((parsedLeads: Lead[]) => {
     setLeads(parsedLeads);
-  }, []);
+    checkAlreadySent(parsedLeads);
+  }, [checkAlreadySent]);
+
+  // ── Remove already-sent leads ──
+  const handleRemoveAlreadySent = useCallback(() => {
+    setLeads((prev) => prev.filter((l) => !alreadySent.has(l.contact_email?.toLowerCase())));
+    setAlreadySent(new Set());
+  }, [alreadySent]);
 
   // ── Handle Resume upload ──
   const handleResumeUpload = useCallback(async (file: File) => {
@@ -236,6 +268,7 @@ export default function NewCampaignPage() {
           campaignId: cId,
           leads,
           resumeText: useSavedResume ? userConfig.savedResume?.parsedText : resumeText,
+          autoSend,
         }),
       });
 
@@ -402,7 +435,6 @@ export default function NewCampaignPage() {
     if (!userConfig) return null;
 
     const issues: string[] = [];
-    if (userConfig.apiKeysCount === 0) issues.push("No API key configured");
     if (!userConfig.gmailConfigured) issues.push("Gmail not configured");
     if (!userConfig.userName.trim()) issues.push("Name not set in your Google account");
 
@@ -411,7 +443,7 @@ export default function NewCampaignPage() {
         <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-success-dim border border-success/20 text-sm">
           <div className="flex items-center gap-2 text-success">
             <CheckCircle2 className="w-4 h-4" />
-            Ready — using {userConfig.gmailAddress} with {userConfig.selectedModel}
+            Ready — using {userConfig.gmailAddress} with Pitchr AI
           </div>
         </div>
       );
@@ -998,11 +1030,38 @@ If any check fails → fix the affected records before outputting <final>.`;
           </div>
 
           {leads.length > 0 && (
-            <CompanyTable
-              leads={leads}
-              onEdit={setEditingLead}
-              onDelete={handleDeleteLead}
-            />
+            <>
+              {/* Already-sent warning banner */}
+              {alreadySent.size > 0 && (
+                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm animate-fade-in">
+                  <div className="flex items-center gap-2 text-amber-400">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>
+                      <strong>{alreadySent.size}</strong> {alreadySent.size === 1 ? "company has" : "companies have"} already been contacted
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleRemoveAlreadySent}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Remove Already Sent
+                  </button>
+                </div>
+              )}
+              {checkingSent && (
+                <div className="flex items-center gap-2 text-xs text-text-faint">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Checking for previously contacted companies...
+                </div>
+              )}
+              <CompanyTable
+                leads={leads}
+                alreadySent={alreadySent}
+                onEdit={setEditingLead}
+                onDelete={handleDeleteLead}
+              />
+            </>
           )}
 
           {/* Edit Lead Modal Overlay */}
@@ -1166,6 +1225,8 @@ If any check fails → fix the affected records before outputting <final>.`;
             isGenerating={isGenerating}
             onGenerate={handleGenerate}
             onRequeueFailed={handleRequeueFailed}
+            autoSend={autoSend}
+            onAutoSendChange={setAutoSend}
           />
 
           {generatedEmails.length > 0 && !isGenerating && (

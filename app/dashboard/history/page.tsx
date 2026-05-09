@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
 import Campaign from "@/models/Campaign";
-import { History, Search, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { History, Search, FileText, CheckCircle2, AlertCircle, MailX } from "lucide-react";
 import Link from "next/link";
 
 export default async function HistoryPage() {
@@ -42,7 +42,7 @@ export default async function HistoryPage() {
           </div>
           <h3 className="text-lg font-semibold text-text-primary mb-2">No Campaigns Yet</h3>
           <p className="text-text-secondary max-w-md mx-auto mb-6">
-            You haven't sent any email campaigns yet. Start a new campaign to see your history here!
+            You haven&apos;t sent any email campaigns yet. Start a new campaign to see your history here!
           </p>
           <Link
             href="/dashboard/campaign/new"
@@ -54,8 +54,11 @@ export default async function HistoryPage() {
       ) : (
         <div className="grid gap-4">
           {campaigns.map((campaign: any) => {
-            const successRate = campaign.leadsCount > 0 
-              ? Math.round((campaign.sentCount / campaign.leadsCount) * 100) 
+            const bouncedCount = campaign.bouncedCount || 0;
+            const deliveredCount = Math.max(0, campaign.sentCount - bouncedCount);
+            const totalAttempted = campaign.leadsCount || campaign.totalLeads || 0;
+            const successRate = totalAttempted > 0
+              ? Math.round((deliveredCount / totalAttempted) * 100)
               : 0;
 
             return (
@@ -83,22 +86,32 @@ export default async function HistoryPage() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-bg-elevated rounded-xl p-4 border border-border-subtle">
                     <div className="flex items-center gap-2 text-text-muted mb-1">
                       <FileText className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase tracking-wider">Total Leads</span>
+                      <span className="text-xs font-medium uppercase tracking-wider">Total</span>
                     </div>
-                    <p className="text-2xl font-bold text-text-primary">{campaign.leadsCount}</p>
+                    <p className="text-2xl font-bold text-text-primary">{totalAttempted}</p>
                   </div>
 
                   <div className="bg-success/5 rounded-xl p-4 border border-success/20">
                     <div className="flex items-center gap-2 text-success mb-1">
                       <CheckCircle2 className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase tracking-wider">Sent</span>
+                      <span className="text-xs font-medium uppercase tracking-wider">Delivered</span>
                     </div>
-                    <p className="text-2xl font-bold text-success">{campaign.sentCount}</p>
+                    <p className="text-2xl font-bold text-success">{deliveredCount}</p>
                   </div>
+
+                  {bouncedCount > 0 && (
+                    <div className="bg-amber-500/5 rounded-xl p-4 border border-amber-500/20">
+                      <div className="flex items-center gap-2 text-amber-400 mb-1">
+                        <MailX className="w-4 h-4" />
+                        <span className="text-xs font-medium uppercase tracking-wider">Bounced</span>
+                      </div>
+                      <p className="text-2xl font-bold text-amber-400">{bouncedCount}</p>
+                    </div>
+                  )}
 
                   <div className="bg-error/5 rounded-xl p-4 border border-error/20">
                     <div className="flex items-center gap-2 text-error mb-1">
@@ -112,6 +125,11 @@ export default async function HistoryPage() {
                 <div className="mt-4 pt-4 border-t border-border-default flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="text-sm font-medium text-text-secondary">
                     Delivery Success Rate: <span className="text-text-primary">{successRate}%</span>
+                    {bouncedCount > 0 && (
+                      <span className="text-xs text-amber-400 ml-2">
+                        ({bouncedCount} bounced back)
+                      </span>
+                    )}
                   </div>
                   <Link 
                     href={`/dashboard/history/${campaign._id}`}
@@ -128,3 +146,4 @@ export default async function HistoryPage() {
     </div>
   );
 }
+
