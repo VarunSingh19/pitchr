@@ -6,7 +6,7 @@
 
 ---
 
-## ✨ Core Features
+## ✨ Core Feature
 
 * 🧠 **AI-Powered Personalization**: Generates highly targeted email copy by analyzing candidate resumes against target job descriptions or company profiles.
 * 🔀 **Smart LLM Routing & Failover**: Intelligently routes generation tasks between Gemini, Claude, OpenAI, and DeepSeek. Automatically handles rate limits and quota exhaustion with zero-downtime failover.
