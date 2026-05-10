@@ -1,39 +1,46 @@
 @import "tailwindcss";
 
-/* ── CEA Dark-Only Design System ── */
+/* ── Convex-Inspired Premium Design System ── */
 :root {
-  /* Backgrounds */
-  --bg-base: #0A0A0A;
-  --bg-surface: #111827;
-  --bg-elevated: #1a1f2e;
-  --bg-subtle: #1e2536;
+  /* Backgrounds - Warm Neutrals */
+  --bg-base: #F5F5F0;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F9F9F7;
+  --bg-subtle: #ECECEA;
+  --bg-dark: #1A1A1A;
+  --bg-dark-surface: #242424;
 
   /* Borders */
-  --border-default: #1F2937;
-  --border-subtle: #374151;
-  --border-accent: #6366F1;
+  --border-default: #E5E5E0;
+  --border-subtle: #D9D9D4;
+  --border-accent: #0066FF;
 
   /* Text */
-  --text-primary: #F1F5F9;
-  --text-secondary: #CBD5E1;
-  --text-muted: #64748B;
-  --text-faint: #475569;
+  --text-primary: #1A1A1A;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --text-faint: #CCCCCC;
+  --text-light: #F5F5F0;
 
-  /* Accent */
-  --accent-primary: #6366F1;
-  --accent-primary-hover: #818CF8;
-  --accent-primary-dim: rgba(99, 102, 241, 0.12);
-  --accent-primary-glow: rgba(99, 102, 241, 0.25);
+  /* Accent - Electric Blue */
+  --accent-primary: #0066FF;
+  --accent-primary-hover: #0052CC;
+  --accent-primary-dim: rgba(0, 102, 255, 0.08);
+  --accent-primary-glow: rgba(0, 102, 255, 0.15);
+
+  /* Warm Accents */
+  --accent-warm-amber: #F59E0B;
+  --accent-warm-coral: #EC4899;
 
   /* Status */
-  --state-success: #34D399;
-  --state-success-dim: rgba(52, 211, 153, 0.12);
-  --state-error: #F87171;
-  --state-error-dim: rgba(248, 113, 113, 0.12);
-  --state-warning: #FBBF24;
-  --state-warning-dim: rgba(251, 191, 36, 0.12);
-  --state-info: #60A5FA;
-  --state-info-dim: rgba(96, 165, 250, 0.12);
+  --state-success: #10B981;
+  --state-success-dim: rgba(16, 185, 129, 0.12);
+  --state-error: #EF4444;
+  --state-error-dim: rgba(239, 68, 68, 0.12);
+  --state-warning: #F59E0B;
+  --state-warning-dim: rgba(245, 158, 11, 0.12);
+  --state-info: #0066FF;
+  --state-info-dim: rgba(0, 102, 255, 0.12);
 
   /* Fonts */
   --font-sans: var(--font-geist-sans);
