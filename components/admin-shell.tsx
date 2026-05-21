@@ -13,6 +13,12 @@ import {
   ChevronRight,
   User as UserIcon,
   ArrowLeft,
+  Users,
+  Mail,
+  Ban,
+  Coins,
+  Sliders,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,15 +28,22 @@ interface AdminShellProps {
     email: string;
     image: string;
   };
+  isImpersonating?: boolean;
   children: React.ReactNode;
 }
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/api-keys", label: "API Keys", icon: Key },
+  { href: "/admin/campaigns", label: "Campaigns", icon: Mail },
+  { href: "/admin/blacklist", label: "Blacklist", icon: Ban },
+  { href: "/admin/financials", label: "Financials", icon: Coins },
+  { href: "/admin/prompts", label: "Prompts", icon: Sliders },
+  { href: "/admin/inngest", label: "Queue Monitor", icon: Zap },
 ];
 
-export function AdminShell({ user, children }: AdminShellProps) {
+export function AdminShell({ user, isImpersonating = false, children }: AdminShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -157,8 +170,38 @@ export function AdminShell({ user, children }: AdminShellProps) {
       </aside>
 
       {/* ── Main content ── */}
-      <main className="flex-1 overflow-y-auto bg-bg-base">
-        <div className="max-w-6xl mx-auto px-6 py-8">
+      <main className="flex-1 overflow-y-auto bg-bg-base flex flex-col">
+        {isImpersonating && (
+          <div className="bg-amber-600 text-white px-6 py-3 flex items-center justify-between shadow-md flex-shrink-0 animate-fade-in border-b border-amber-700">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <span className="text-base">⚠️</span>
+              <span>
+                <strong>Impersonation Active:</strong> You are viewing Pitchr as <strong>{user.email}</strong>.
+              </span>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/admin/impersonate", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                  });
+                  if (res.ok) {
+                    window.location.href = "/admin/users";
+                  } else {
+                    alert("Failed to stop impersonation");
+                  }
+                } catch {
+                  alert("Failed to stop impersonation");
+                }
+              }}
+              className="bg-white text-amber-700 px-3.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-amber-50 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              Stop Impersonating
+            </button>
+          </div>
+        )}
+        <div className="flex-1 max-w-6xl w-full mx-auto px-6 py-8">
           {children}
         </div>
       </main>

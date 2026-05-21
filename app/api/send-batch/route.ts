@@ -7,6 +7,8 @@ import EmailLog from "@/models/EmailLog";
 import { decrypt } from "@/lib/encryption";
 import { inngest } from "@/inngest/client";
 
+import { checkUserQuotas } from "@/lib/quota";
+
 interface CompanyPayload {
   companyId: string | number;
   company: string;
@@ -44,6 +46,12 @@ export async function POST(request: Request) {
 
     if (!user) {
       return Response.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Check daily/monthly sending limits quota
+    const quotaCheck = await checkUserQuotas(user, companies.length);
+    if (!quotaCheck.allowed) {
+      return Response.json({ error: quotaCheck.reason }, { status: 403 });
     }
 
     // If resumeBase64 is not provided, it means we should use the saved resume from the DB

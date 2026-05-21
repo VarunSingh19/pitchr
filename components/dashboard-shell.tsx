@@ -26,6 +26,7 @@ interface DashboardShellProps {
     image: string;
     role?: string;
   };
+  isImpersonating?: boolean;
   children: React.ReactNode;
 }
 
@@ -37,7 +38,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-export function DashboardShell({ user, children }: DashboardShellProps) {
+export function DashboardShell({ user, isImpersonating = false, children }: DashboardShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -175,8 +176,38 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
       </aside>
 
       {/* ── Main content ── */}
-      <main className="flex-1 overflow-y-auto bg-bg-base">
-        <div className="max-w-6xl mx-auto px-6 py-8">
+      <main className="flex-1 overflow-y-auto bg-bg-base flex flex-col">
+        {isImpersonating && (
+          <div className="bg-amber-600 text-white px-6 py-3 flex items-center justify-between shadow-md flex-shrink-0 animate-fade-in border-b border-amber-700">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <span className="text-base">⚠️</span>
+              <span>
+                <strong>Impersonation Active:</strong> You are viewing Pitchr as <strong>{user.email}</strong>.
+              </span>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/admin/impersonate", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                  });
+                  if (res.ok) {
+                    window.location.reload();
+                  } else {
+                    alert("Failed to stop impersonation");
+                  }
+                } catch {
+                  alert("Failed to stop impersonation");
+                }
+              }}
+              className="bg-white text-amber-700 px-3.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-amber-50 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              Stop Impersonating
+            </button>
+          </div>
+        )}
+        <div className="flex-1 max-w-6xl w-full mx-auto px-6 py-8">
           {children}
         </div>
       </main>

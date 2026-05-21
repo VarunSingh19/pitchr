@@ -25,8 +25,24 @@ export function ModelSelector() {
       fetch("/api/models/available").then((r) => r.json()),
     ])
       .then(([settings, modelsData]) => {
-        setSelectedModel(settings.selectedModel || "gemini-2.5-flash");
-        setAvailableModels(modelsData.models || []);
+        const available = modelsData.models || [];
+        setAvailableModels(available);
+
+        const currentModel = settings.selectedModel;
+        const isValid = available.some((m: any) => m.id === currentModel);
+
+        if (isValid) {
+          setSelectedModel(currentModel);
+        } else if (available.length > 0) {
+          setSelectedModel(available[0].id);
+          fetch("/api/user/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ selectedModel: available[0].id }),
+          }).catch(() => {});
+        } else {
+          setSelectedModel("gemini-2.5-flash");
+        }
       })
       .catch(() => {
         setSelectedModel("gemini-2.5-flash");

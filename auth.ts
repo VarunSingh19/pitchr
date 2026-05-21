@@ -9,6 +9,7 @@ import { authConfig } from "./auth.config";
 import { autoPromoteAdmin } from "@/lib/admin-auth";
 import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
+import { cookies } from "next/headers";
 
 // Auto-promote ADMIN_EMAIL user on server start (no-ops if env var is unset)
 let _adminPromoteRan = false;
@@ -40,6 +41,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // On initial sign-in, attach the MongoDB user ID to the JWT
       if (user?.id) {
         token.userId = user.id;
+        
+        // Update last login timestamp in the database asynchronously
+        dbConnect().then(() => {
+          User.findByIdAndUpdate(user.id, { $set: { lastLoginAt: new Date() } }).catch(err => {
+            console.warn("[auth] Failed to update lastLoginAt:", err);
+          });
+        }).catch(() => {});
       }
 
       // Always refresh role from DB so promotions take effect immediately
@@ -61,6 +69,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.userId as string;
         (session.user as unknown as Record<string, unknown>).role = token.role || "user";
       }
+
+      // Session Impersonation Logic:
+      // If the real authenticated user is an admin, check if an impersonation cookie is set.
+      if (token.role === "admin") {
+        try {
+          const cookieStore = await cookies();
+          const impersonateUserId = cookieStore.get("impersonate_user_id")?.value;
+
+          if (impersonateUserId) {
+            await dbConnect();
+            const impersonatedUser = await User.findById(impersonateUserId).lean();
+            if (impersonatedUser) {
+              // Override active session details with the impersonated user's details
+              session.user.id = impersonatedUser._id.toString();
+              session.user.email = impersonatedUser.email;
+              session.user.name = impersonatedUser.name || impersonatedUser.email.split("@")[0];
+              (session.user as unknown as Record<string, unknown>).role = impersonatedUser.role || "user";
+              
+              // Inject impersonation metadata
+              (session as any).isImpersonating = true;
+              (session as any).impersonator = {
+                id: token.userId,
+                email: token.email,
+                name: token.name || "Admin",
+              };
+            }
+          }
+        } catch (err) {
+          console.warn("[auth] Impersonation lookup failed:", err);
+        }
+      }
+
       return session;
     },
   },

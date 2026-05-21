@@ -106,6 +106,24 @@ export const SUPPORTED_PROVIDERS = [
 
 export type ProviderType = "gemini" | "nvidia" | "claude";
 
+export interface ModelPricing {
+  inputCostPer1M: number;  // USD cost per 1M input tokens
+  outputCostPer1M: number; // USD cost per 1M output tokens
+}
+
+export const MODEL_PRICING: Record<string, ModelPricing> = {
+  "gemini-2.5-flash": { inputCostPer1M: 0.075, outputCostPer1M: 0.30 },
+  "gemini-2.5-pro": { inputCostPer1M: 1.25, outputCostPer1M: 5.00 },
+  "gemini-2.0-flash": { inputCostPer1M: 0.075, outputCostPer1M: 0.30 },
+  "meta/llama-3.3-70b-instruct": { inputCostPer1M: 0.70, outputCostPer1M: 0.70 },
+  "meta/llama-3.1-8b-instruct": { inputCostPer1M: 0.15, outputCostPer1M: 0.15 },
+  "meta/llama-3.1-70b-instruct": { inputCostPer1M: 0.70, outputCostPer1M: 0.70 },
+  "deepseek-ai/deepseek-r1": { inputCostPer1M: 0.55, outputCostPer1M: 2.19 },
+  "mistralai/mistral-large-2": { inputCostPer1M: 2.00, outputCostPer1M: 6.00 },
+  "qwen/qwen2.5-72b-instruct": { inputCostPer1M: 0.40, outputCostPer1M: 0.40 },
+  "nvidia/nemotron-3-nano-30b-a3b": { inputCostPer1M: 0.15, outputCostPer1M: 0.15 },
+};
+
 export const DEFAULT_MODEL = SUPPORTED_MODELS.find((m) => m.isDefault)!;
 
 /** Get models filtered by provider */

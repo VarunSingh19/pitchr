@@ -1,16 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, FileText, ChevronDown } from "lucide-react";
+import { Mail, FileText, ChevronDown, Sparkles, Sliders } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GmailSettings } from "@/components/gmail-settings";
 import { ResumeSettings } from "@/components/resume-settings";
+import { ModelSelector } from "@/components/model-selector";
+import { PromptSettings } from "@/components/prompt-settings";
 
-type SettingsSection = "gmail" | "resume";
+type SettingsSection = "gmail" | "resume" | "model" | "prompt";
 
 const SECTIONS = [
   { key: "gmail", label: "Gmail Configuration", icon: Mail, description: "Set up your Gmail app password for sending emails." },
   { key: "resume", label: "Resume Configuration", icon: FileText, description: "Upload a persistent resume for all campaigns." },
+  { key: "model", label: "Model Selection", icon: Sparkles, description: "Choose the default AI model for email generation." },
+  { key: "prompt", label: "Prompt Setup", icon: Sliders, description: "Configure custom criteria for your B2B candidate lead lists." },
 ] as const;
 
 export default function SettingsPage() {
@@ -66,6 +70,8 @@ export default function SettingsPage() {
                     <div className="pt-4">
                       {key === "gmail" && <GmailSettings />}
                       {key === "resume" && <ResumeSettings />}
+                      {key === "model" && <ModelSelector />}
+                      {key === "prompt" && <PromptSettings />}
                     </div>
                   </div>
                 </div>

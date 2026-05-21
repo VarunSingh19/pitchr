@@ -22,13 +22,22 @@ export async function POST(request: Request) {
       return Response.json({ error: "Resume not found. Please upload it in settings." }, { status: 400 });
     }
 
-    // Use the user's selected model — key comes from the system pool
-    const modelId = user.selectedModel || "gemini-2.5-flash";
+    const { resolveUserSelectedModel } = await import("@/lib/quota");
+    let modelId: string;
+    try {
+      modelId = await resolveUserSelectedModel(user);
+    } catch (e: any) {
+      return Response.json(
+        { error: e.message || "No active AI models are available in the system." },
+        { status: 503 }
+      );
+    }
 
     const generatedReply = await pooledGenerateReply(
       emailText,
       user.resume.parsedText,
-      modelId
+      modelId,
+      user._id.toString()
     );
 
     return Response.json({ reply: generatedReply });

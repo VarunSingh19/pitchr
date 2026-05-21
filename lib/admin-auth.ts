@@ -19,6 +19,11 @@ export async function requireAdmin() {
     });
   }
 
+  // If impersonating, the real user is verified as admin
+  if ((session as any).isImpersonating) {
+    return session;
+  }
+
   await dbConnect();
   const user = await User.findOne({ email: session.user.email }).select("role").lean();
 
@@ -39,6 +44,8 @@ export async function requireAdmin() {
 export async function isAdmin(): Promise<boolean> {
   const session = await auth();
   if (!session?.user?.email) return false;
+
+  if ((session as any).isImpersonating) return true;
 
   await dbConnect();
   const user = await User.findOne({ email: session.user.email }).select("role").lean();

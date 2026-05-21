@@ -4,6 +4,8 @@ import Campaign from "@/models/Campaign";
 import User from "@/models/User";
 import { inngest } from "@/inngest/client";
 
+import { checkUserQuotas } from "@/lib/quota";
+
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -28,6 +30,12 @@ export async function POST(request: Request) {
       return Response.json({ error: "Campaign not found" }, { status: 404 });
     }
 
+    // Check daily/monthly sending limits quota
+    const quotaCheck = await checkUserQuotas(user, leads.length);
+    if (!quotaCheck.allowed) {
+      return Response.json({ error: quotaCheck.reason }, { status: 403 });
+    }
+
     // 1. Prepare events for Inngest
     const events = leads.map((lead: any) => ({
       name: "campaign/generate.email",
@@ -47,6 +55,7 @@ export async function POST(request: Request) {
     campaign.status = "GENERATING";
     campaign.totalLeads = leads.length;
     campaign.autoSend = autoSend || false;
+    campaign.leads = leads;
     await campaign.save();
 
     return Response.json({ success: true, queuedCount: leads.length });

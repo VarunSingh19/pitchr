@@ -28,7 +28,16 @@ export async function POST(request: Request) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
 
-    const modelId = user.selectedModel || "gemini-2.5-flash";
+    const { resolveUserSelectedModel } = await import("@/lib/quota");
+    let modelId: string;
+    try {
+      modelId = await resolveUserSelectedModel(user);
+    } catch (e: any) {
+      return Response.json(
+        { error: e.message || "No active AI models are available in the system." },
+        { status: 503 }
+      );
+    }
 
     // Normalize stack to string
     const stackStr = Array.isArray(company.stack)
@@ -46,7 +55,8 @@ export async function POST(request: Request) {
         stack: stackStr,
         fitScore: String(company.fit_score || ""),
       },
-      modelId
+      modelId,
+      user._id.toString()
     );
 
     // Generate subject line using the system key pool
@@ -55,7 +65,8 @@ export async function POST(request: Request) {
       company.role,
       stackStr,
       userName,
-      modelId
+      modelId,
+      user._id.toString()
     );
 
     return Response.json({

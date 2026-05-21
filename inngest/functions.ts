@@ -68,14 +68,75 @@ export const generateSingleEmail = inngest.createFunction(
       return { message: "Already generated or in progress", logId };
     }
 
+    // Check system blacklist
+    const blacklistCheck = await step.run("check-blacklist", async () => {
+      await dbConnect();
+      const SystemBlacklist = (await import("@/models/SystemBlacklist")).default;
+      const emailNormalized = String(lead.contact_email || "").trim().toLowerCase();
+      const domain = emailNormalized.split("@")[1] || "";
+      
+      const exists = await SystemBlacklist.findOne({
+        domainOrEmail: { $in: [emailNormalized, domain] }
+      }).lean();
+
+      return !!exists;
+    });
+
+    if (blacklistCheck) {
+      await step.run("handle-blacklisted-email", async () => {
+        await dbConnect();
+        await EmailLog.findByIdAndUpdate(logId, {
+          status: "FAILED",
+          error: "Skipped: Recipient email or domain is blocklisted system-wide.",
+          generationError: "Skipped: Recipient email or domain is blocklisted system-wide.",
+        });
+
+        // Increment campaign failedCount
+        await Campaign.findByIdAndUpdate(campaignId, {
+          $inc: { failedCount: 1 }
+        });
+      });
+
+      // Still check campaign completion in case this was the last lead!
+      await step.run("check-campaign-complete", async () => {
+        await dbConnect();
+
+        const campaign = await Campaign.findById(campaignId);
+        if (!campaign || campaign.status !== "GENERATING") return;
+
+        const doneCount = await EmailLog.countDocuments({
+          campaignId: new Types.ObjectId(campaignId),
+          status: { $in: ["GENERATED", "FAILED", "SENT", "BOUNCED"] },
+        });
+
+        if (doneCount >= campaign.totalLeads) {
+          const nextStatus = campaign.autoSend ? "SENDING" : "READY";
+          const transitioned = await Campaign.findOneAndUpdate(
+            { _id: campaignId, status: "GENERATING" },
+            { status: nextStatus }
+          );
+
+          if (transitioned && campaign.autoSend) {
+            await inngest.send({
+              name: "campaign/auto-send",
+              data: { campaignId, userId },
+            });
+          }
+        }
+      });
+
+      return { success: false, reason: "Blacklisted", logId };
+    }
+
     // Fetch the user's selected model — the key comes from the system pool
     const modelId = await step.run("fetch-user-model", async () => {
       await dbConnect();
 
-      const user = await User.findById(userId).select("selectedModel").lean();
+      const user = await User.findById(userId);
       if (!user) throw new Error("User not found");
 
-      return user.selectedModel || "gemini-2.5-flash";
+      const { resolveUserSelectedModel } = await import("@/lib/quota");
+      return resolveUserSelectedModel(user);
     });
 
     const body = await step.run("generate-email-body", async () => {
@@ -93,7 +154,9 @@ export const generateSingleEmail = inngest.createFunction(
           stack: stackStr,
           fitScore: String(lead.fit_score || ""),
         },
-        modelId
+        modelId,
+        userId,
+        campaignId
       );
     });
 
@@ -107,7 +170,9 @@ export const generateSingleEmail = inngest.createFunction(
         lead.role,
         stackStr,
         userName,
-        modelId
+        modelId,
+        userId,
+        campaignId
       );
     });
 

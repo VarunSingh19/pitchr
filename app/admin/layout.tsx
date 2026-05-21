@@ -27,6 +27,7 @@ export default async function AdminLayout({
         email: session.user.email || "",
         image: session.user.image || "",
       }}
+      isImpersonating={!!(session as any).isImpersonating}
     >
       {children}
     </AdminShell>

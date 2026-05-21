@@ -191,22 +191,24 @@ export function EmailPreviewTable({
       </div>
 
       {/* Edit Modal */}
-      {editingIndex !== null && (
+      {editingIndex !== null && mounted && createPortal(
         <EmailEditModal
           email={emails[editingIndex]}
           mode="edit"
           onSave={(subject, body) => handleSave(editingIndex, subject, body)}
           onClose={() => setEditingIndex(null)}
-        />
+        />,
+        document.body
       )}
 
       {/* Preview Modal */}
-      {previewIndex !== null && (
+      {previewIndex !== null && mounted && createPortal(
         <EmailEditModal
           email={emails[previewIndex]}
           mode="preview"
           onClose={() => setPreviewIndex(null)}
-        />
+        />,
+        document.body
       )}
 
       {/* Delete Email Modal Overlay */}

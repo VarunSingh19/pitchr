@@ -21,6 +21,7 @@ export default async function DashboardLayout({
         image: session.user.image || "",
         role: (session.user as unknown as Record<string, unknown>).role as string || "user",
       }}
+      isImpersonating={!!(session as any).isImpersonating}
     >
       {children}
     </DashboardShell>

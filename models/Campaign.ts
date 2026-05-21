@@ -10,6 +10,7 @@ export interface ICampaign extends Document {
   autoSend: boolean;
   status: "DRAFT" | "GENERATING" | "READY" | "SENDING" | "COMPLETED" | "FAILED";
   totalLeads: number;
+  leads?: any[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,6 +25,7 @@ const CampaignSchema = new Schema<ICampaign>(
     bouncedCount: { type: Number, default: 0 },
     autoSend: { type: Boolean, default: false },
     totalLeads: { type: Number, default: 0 },
+    leads: { type: [Schema.Types.Mixed], default: [] },
     status: {
       type: String,
       enum: ["DRAFT", "GENERATING", "READY", "SENDING", "COMPLETED", "FAILED"],

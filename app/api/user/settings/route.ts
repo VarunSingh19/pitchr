@@ -36,6 +36,15 @@ export async function GET() {
       fileName: user.resume.fileName,
       parsedText: user.resume.parsedText,
     } : null,
+    promptConfig: user.promptConfig || {
+      targetGeography: "Mumbai — specifically Malad and Andheri areas (also accept nearby: Goregaon, Jogeshwari, MIDC, SV Road, WEH, Link Road corridors)",
+      targetRoles: ["Full Stack Developer", "React Developer", "Node.js Developer", "MERN Stack Developer"],
+      targetStack: ["React", "Node.js", "MongoDB", "Express", "JavaScript", "TypeScript"],
+      companyTypes: ["Product startups", "IT services firms", "SaaS companies", "agencies actively posting jobs"],
+      minJobAgeDays: 90,
+      researcherLocation: "Mumbai, Maharashtra",
+      hasConfigured: false,
+    },
   });
 }
 
@@ -65,6 +74,16 @@ export async function PATCH(request: Request) {
         { status: 400 }
       );
     }
+    
+    // Check if the model is allowed for this user
+    const allowedModels = user.quotas?.allowedModels ?? ["gemini-2.5-flash", "nvidia/llama-3.1-405b-instruct"];
+    if (!allowedModels.includes(body.selectedModel)) {
+      return Response.json(
+        { error: "Selected model is not allowed on your account level" },
+        { status: 403 }
+      );
+    }
+
     user.selectedModel = body.selectedModel;
   }
 
@@ -74,6 +93,19 @@ export async function PATCH(request: Request) {
       address: body.gmailConfig.address || "",
       appPassword: body.gmailConfig.appPassword || "", // Encrypted by pre-save hook
       validated: body.gmailConfig.validated ?? false,
+    };
+  }
+
+  // Update Prompt Config
+  if (body.promptConfig) {
+    user.promptConfig = {
+      targetGeography: body.promptConfig.targetGeography || "",
+      targetRoles: Array.isArray(body.promptConfig.targetRoles) ? body.promptConfig.targetRoles : [],
+      targetStack: Array.isArray(body.promptConfig.targetStack) ? body.promptConfig.targetStack : [],
+      companyTypes: Array.isArray(body.promptConfig.companyTypes) ? body.promptConfig.companyTypes : [],
+      minJobAgeDays: Number(body.promptConfig.minJobAgeDays) || 90,
+      researcherLocation: body.promptConfig.researcherLocation || "",
+      hasConfigured: body.promptConfig.hasConfigured ?? true,
     };
   }
 

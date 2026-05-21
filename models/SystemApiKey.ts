@@ -10,6 +10,10 @@ export interface ISystemApiKey extends Document {
   usageCount: number;
   lastUsedAt: Date;
   rateLimitedUntil: Date | null;
+  consecutiveFailures: number;
+  averageLatencyMs: number;
+  lastError: string;
+  latencyHistory: number[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,6 +32,10 @@ const SystemApiKeySchema = new Schema<ISystemApiKey>(
     usageCount: { type: Number, default: 0 },
     lastUsedAt: { type: Date, default: new Date(0) }, // epoch — ensures brand-new keys are selected first
     rateLimitedUntil: { type: Date, default: null },
+    consecutiveFailures: { type: Number, default: 0 },
+    averageLatencyMs: { type: Number, default: 0 },
+    lastError: { type: String, default: "" },
+    latencyHistory: { type: [Number], default: [] },
   },
   { timestamps: true }
 );

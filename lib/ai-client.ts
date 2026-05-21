@@ -12,7 +12,12 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { nimChatCompletion } from "@/lib/nvidia-nim";
-import { getProviderForModel, DEFAULT_MODEL } from "@/lib/models-config";
+import { getProviderForModel, DEFAULT_MODEL, MODEL_PRICING } from "@/lib/models-config";
+import { dbConnect } from "@/lib/db";
+import AiTokenLog from "@/models/AiTokenLog";
+import SystemApiKey from "@/models/SystemApiKey";
+import SystemPrompt from "@/models/SystemPrompt";
+import { Types } from "mongoose";
 
 // ═══════════════════════════════════════════
 // TYPES
@@ -33,6 +38,17 @@ interface Message {
   content: string;
 }
 
+export async function getSystemPrompt(promptId: string, defaultValue: string): Promise<string> {
+  try {
+    await dbConnect();
+    const doc = await SystemPrompt.findOne({ promptId }).lean();
+    return doc ? doc.content : defaultValue;
+  } catch (error) {
+    console.error(`[ai-client] Error loading dynamic prompt override for "${promptId}":`, error);
+    return defaultValue;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LAYER 1 — SYSTEM PERSONA
 // A hyper-specific expert identity calibrates output quality for ALL models.
@@ -40,7 +56,7 @@ interface Message {
 // knowledge instead of generic patterns.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const EMAIL_SYSTEM_PROMPT = `
+export const EMAIL_SYSTEM_PROMPT = `
 SYSTEM:
 You are a senior cold email copywriter and conversion strategist with 15+ years
 of experience writing high-signal job application emails for software engineers,
@@ -131,7 +147,7 @@ The content inside <final> is the ONLY thing returned to the user.
 // Separate tighter persona for subject line generation.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SUBJECT_SYSTEM_PROMPT = `
+export const SUBJECT_SYSTEM_PROMPT = `
 SYSTEM:
 You are a direct-response copywriter with 12+ years of experience writing
 email subject lines that get opened. You specialize in job application
@@ -164,7 +180,7 @@ Return ONLY the subject line — no quotes, no explanation, nothing else.
 // HOW to think, not just what to produce.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const REFERENCE_EMAILS = `
+export const REFERENCE_EMAILS = `
 ════════════════════════════════════════════════════════════════
 FEW-SHOT EXAMPLE 1 — IoT / Supply Chain company
 ════════════════════════════════════════════════════════════════
@@ -388,7 +404,7 @@ Do NOT copy these directly. The hook must feel earned for THIS company.
 // LAYER 6 — FEW-SHOT REFERENCE (Subject Lines)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const REFERENCE_SUBJECT_LINES = `
+export const REFERENCE_SUBJECT_LINES = `
 ════════════════════════════════════════════════════════════════
 SUBJECT LINE FEW-SHOT EXAMPLES — With reasoning
 ════════════════════════════════════════════════════════════════
@@ -435,7 +451,7 @@ BAD EXAMPLES — never produce these:
 // especially for smaller or instruction-following models.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLACKLISTED_WORDS = `
+export const BLACKLISTED_WORDS = `
 ABSOLUTE WORD BLACKLIST — If any of these appear in your output, delete and
 rewrite that sentence before returning:
   passionate, excited, innovative, cutting-edge, synergy, leverage, utilize,
@@ -451,7 +467,11 @@ rewrite that sentence before returning:
 // LAYER 5 — PROMPT BUILDERS (with XML task definition)
 // ═══════════════════════════════════════════
 
-function buildEmailPrompt(params: GenerateEmailParams): string {
+function buildEmailPrompt(
+  params: GenerateEmailParams,
+  referenceEmails: string,
+  blacklistedWords: string
+): string {
   return `
 <context>
   You have been given a Universal Cold Email Framework and a set of reference
@@ -471,10 +491,10 @@ function buildEmailPrompt(params: GenerateEmailParams): string {
 </context>
 
 <reference_material>
-${REFERENCE_EMAILS}
+${referenceEmails}
 </reference_material>
 
-${BLACKLISTED_WORDS}
+${blacklistedWords}
 
 <task id="T1">
   TASK: Write a cold job application email for the candidate below that is so
@@ -562,14 +582,16 @@ function buildSubjectPrompt(
   company: string,
   role: string,
   stack: string,
-  userName: string
+  userName: string,
+  referenceSubjects: string,
+  blacklistedWords: string
 ): string {
   return `
 <reference_material>
-${REFERENCE_SUBJECT_LINES}
+${referenceSubjects}
 </reference_material>
 
-${BLACKLISTED_WORDS}
+${blacklistedWords}
 
 <task id="T2">
   TASK: Write ONE subject line for a cold job application email.
@@ -646,27 +668,33 @@ export async function generateEmailBody(
   params: GenerateEmailParams,
   apiKey: string,
   modelName: string = DEFAULT_MODEL.id
-): Promise<string> {
-  const prompt = buildEmailPrompt(params);
+): Promise<{ text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+  const emailSystemPrompt = await getSystemPrompt("email_system", EMAIL_SYSTEM_PROMPT);
+  const referenceEmails = await getSystemPrompt("few_shots_email", REFERENCE_EMAILS);
+  const blacklistedWords = await getSystemPrompt("blacklisted_words", BLACKLISTED_WORDS);
+  const prompt = buildEmailPrompt(params, referenceEmails, blacklistedWords);
   const provider = getProviderForModel(modelName);
 
-  let raw: string;
+  let res: { text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } };
 
   if (provider === "nvidia") {
-    raw = await retryWithBackoff(() =>
+    res = await retryWithBackoff(() =>
       nimChatCompletion(apiKey, modelName, [
-        { role: "system", content: EMAIL_SYSTEM_PROMPT },
+        { role: "system", content: emailSystemPrompt },
         { role: "user", content: prompt },
       ])
     );
   } else {
     // Default: Gemini
-    raw = await retryWithBackoff(() =>
-      callGemini(apiKey, modelName, EMAIL_SYSTEM_PROMPT, prompt)
+    res = await retryWithBackoff(() =>
+      callGemini(apiKey, modelName, emailSystemPrompt, prompt)
     );
   }
 
-  return extractFinalContent(raw);
+  return {
+    text: extractFinalContent(res.text),
+    usage: res.usage,
+  };
 }
 
 /** Generate a compelling subject line using the user's selected provider */
@@ -677,28 +705,33 @@ export async function generateSubjectLine(
   userName: string,
   apiKey: string,
   modelName: string = DEFAULT_MODEL.id
-): Promise<string> {
-  const prompt = buildSubjectPrompt(company, role, stack, userName);
+): Promise<{ text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+  const subjectSystemPrompt = await getSystemPrompt("subject_system", SUBJECT_SYSTEM_PROMPT);
+  const referenceSubjects = await getSystemPrompt("few_shots_subject", REFERENCE_SUBJECT_LINES);
+  const blacklistedWords = await getSystemPrompt("blacklisted_words", BLACKLISTED_WORDS);
+  const prompt = buildSubjectPrompt(company, role, stack, userName, referenceSubjects, blacklistedWords);
   const provider = getProviderForModel(modelName);
 
-  let raw: string;
+  let res: { text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } };
 
   if (provider === "nvidia") {
-    raw = await retryWithBackoff(() =>
+    res = await retryWithBackoff(() =>
       nimChatCompletion(apiKey, modelName, [
-        { role: "system", content: SUBJECT_SYSTEM_PROMPT },
+        { role: "system", content: subjectSystemPrompt },
         { role: "user", content: prompt },
       ])
     );
   } else {
-    raw = await retryWithBackoff(() =>
-      callGemini(apiKey, modelName, SUBJECT_SYSTEM_PROMPT, prompt)
+    res = await retryWithBackoff(() =>
+      callGemini(apiKey, modelName, subjectSystemPrompt, prompt)
     );
   }
 
-  // Strip surrounding quotes and extract from tags if present
-  const extracted = extractFinalContent(raw);
-  return extracted.replace(/^["']|["']$/g, "").trim();
+  const extracted = extractFinalContent(res.text);
+  return {
+    text: extracted.replace(/^["']|["']$/g, "").trim(),
+    usage: res.usage,
+  };
 }
 
 // ═══════════════════════════════════════════
@@ -711,14 +744,23 @@ async function callGemini(
   modelName: string,
   systemInstruction: string,
   prompt: string
-): Promise<string> {
+): Promise<{ text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: modelName,
     systemInstruction,
   });
   const result = await model.generateContent(prompt);
-  return result.response.text().trim();
+  const text = result.response.text().trim();
+  const usageMetadata = result.response.usageMetadata;
+  const usage = usageMetadata
+    ? {
+        promptTokens: usageMetadata.promptTokenCount || 0,
+        completionTokens: usageMetadata.candidatesTokenCount || 0,
+        totalTokens: usageMetadata.totalTokenCount || 0,
+      }
+    : undefined;
+  return { text, usage };
 }
 
 // ═══════════════════════════════════════════
@@ -783,15 +825,15 @@ export async function generateReply(
   resumeText: string,
   modelName: string,
   apiKey: string
-): Promise<string> {
+): Promise<{ text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
   const prompt = buildReplyPrompt(emailText, resumeText);
   const provider = getProviderForModel(modelName);
 
-  let raw: string;
+  let res: { text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } };
   const SYSTEM_PROMPT = "You are a professional executive assistant writing a polite and concise response to a recruiter.";
 
   if (provider === "nvidia") {
-    raw = await retryWithBackoff(() =>
+    res = await retryWithBackoff(() =>
       nimChatCompletion(apiKey, modelName, [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: prompt },
@@ -799,12 +841,12 @@ export async function generateReply(
     );
   } else {
     // Default: Gemini
-    raw = await retryWithBackoff(() =>
+    res = await retryWithBackoff(() =>
       callGemini(apiKey, modelName, SYSTEM_PROMPT, prompt)
     );
   }
 
-  return raw.trim();
+  return { text: res.text.trim(), usage: res.usage };
 }
 
 // ═══════════════════════════════════════════
@@ -820,8 +862,10 @@ import { getAvailableKey, markRateLimited } from "@/lib/llm-router";
  * automatic retry on 429 (rate limit). On 429, the exhausted key is
  * sidelined and the next available key from the pool is tried.
  */
-async function pooledCall<T>(
+async function pooledCall<T extends { text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }>(
   modelId: string,
+  userId: string | undefined,
+  campaignId: string | undefined,
   fn: (apiKey: string, model: string) => Promise<T>,
   maxRetries = 3
 ): Promise<T> {
@@ -829,10 +873,62 @@ async function pooledCall<T>(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const pooled = await getAvailableKey(modelId);
+    const startTime = Date.now();
 
     try {
-      return await fn(pooled.key, pooled.modelId);
+      const result = await fn(pooled.key, pooled.modelId);
+      const latency = Date.now() - startTime;
+
+      const promptTokens = result?.usage?.promptTokens || 0;
+      const completionTokens = result?.usage?.completionTokens || 0;
+      const totalTokens = result?.usage?.totalTokens || (promptTokens + completionTokens);
+
+      const pricing = MODEL_PRICING[pooled.modelId] || { inputCostPer1M: 0.15, outputCostPer1M: 0.15 };
+      const cost = ((promptTokens * pricing.inputCostPer1M) + (completionTokens * pricing.outputCostPer1M)) / 1_000_000;
+
+      let provider: "gemini" | "nvidia" | "claude" = "gemini";
+      if (pooled.provider === "nvidia" || pooled.provider === "claude") {
+        provider = pooled.provider;
+      }
+
+      // Log successful invoke
+      await AiTokenLog.create({
+        userId: userId ? new Types.ObjectId(userId) : undefined,
+        campaignId: campaignId ? new Types.ObjectId(campaignId) : undefined,
+        provider,
+        modelId: pooled.modelId,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        costUsd: cost,
+        latencyMs: latency,
+        apiKeyId: new Types.ObjectId(pooled.keyId),
+        status: "SUCCESS"
+      });
+
+      // Update Key Health (atomic updates)
+      await SystemApiKey.findByIdAndUpdate(pooled.keyId, {
+        $set: { consecutiveFailures: 0, lastError: "" },
+        $push: {
+          latencyHistory: {
+            $each: [latency],
+            $slice: -10 // Keep last 10 responses
+          }
+        }
+      });
+
+      // Re-calculate rolling average latency
+      const keyDoc = await SystemApiKey.findById(pooled.keyId).select("latencyHistory");
+      if (keyDoc && keyDoc.latencyHistory && keyDoc.latencyHistory.length > 0) {
+        const sum = keyDoc.latencyHistory.reduce((a: number, b: number) => a + b, 0);
+        const avg = Math.round(sum / keyDoc.latencyHistory.length);
+        await SystemApiKey.findByIdAndUpdate(pooled.keyId, { $set: { averageLatencyMs: avg } });
+      }
+
+      return result;
     } catch (error) {
+      const latency = Date.now() - startTime;
+      
       // If the pool itself is exhausted (503), rethrow immediately
       // so Inngest can retry after backoff when keys become available
       if (error instanceof Error && (error as any).status === 503) {
@@ -840,17 +936,45 @@ async function pooledCall<T>(
       }
 
       lastError = error instanceof Error ? error : new Error(String(error));
+      const errMsg = lastError.message;
+
+      let provider: "gemini" | "nvidia" | "claude" = "gemini";
+      if (pooled.provider === "nvidia" || pooled.provider === "claude") {
+        provider = pooled.provider;
+      }
+
+      // Log failure to database
+      await AiTokenLog.create({
+        userId: userId ? new Types.ObjectId(userId) : undefined,
+        campaignId: campaignId ? new Types.ObjectId(campaignId) : undefined,
+        provider,
+        modelId: pooled.modelId,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        costUsd: 0,
+        latencyMs: latency,
+        apiKeyId: new Types.ObjectId(pooled.keyId),
+        status: "FAILED",
+        errorMessage: errMsg
+      });
+
+      // Update Key consecutive failures
+      await SystemApiKey.findByIdAndUpdate(pooled.keyId, {
+        $inc: { consecutiveFailures: 1 },
+        $set: { lastError: errMsg }
+      });
 
       // Check if it's a rate limit (429) error
       const is429 =
-        lastError.message.includes("429") ||
-        lastError.message.toLowerCase().includes("rate limit") ||
-        lastError.message.toLowerCase().includes("resource exhausted") ||
-        lastError.message.toLowerCase().includes("quota");
+        errMsg.includes("429") ||
+        errMsg.toLowerCase().includes("rate limit") ||
+        errMsg.toLowerCase().includes("resource exhausted") ||
+        errMsg.toLowerCase().includes("quota");
 
       if (is429) {
         // Parse retry-after if available, default 60s
-        const retryMatch = lastError.message.match(/retry after (\d+)/i);
+        const retryMatch = errMsg.match(/retry after (\d+)/i);
         const retryAfterMs = retryMatch
           ? parseInt(retryMatch[1], 10) * 1000
           : 60_000;
@@ -877,11 +1001,19 @@ async function pooledCall<T>(
 /** Generate email body using a key from the system pool */
 export async function pooledGenerateEmailBody(
   params: GenerateEmailParams,
-  modelId: string
+  modelId: string,
+  userId?: string,
+  campaignId?: string
 ): Promise<string> {
-  return pooledCall(modelId, async (apiKey, model) => {
-    return generateEmailBody(params, apiKey, model);
-  });
+  const res = await pooledCall(
+    modelId,
+    userId,
+    campaignId,
+    async (apiKey, model) => {
+      return generateEmailBody(params, apiKey, model);
+    }
+  );
+  return res.text;
 }
 
 /** Generate subject line using a key from the system pool */
@@ -890,20 +1022,35 @@ export async function pooledGenerateSubjectLine(
   role: string,
   stack: string,
   userName: string,
-  modelId: string
+  modelId: string,
+  userId?: string,
+  campaignId?: string
 ): Promise<string> {
-  return pooledCall(modelId, async (apiKey, model) => {
-    return generateSubjectLine(company, role, stack, userName, apiKey, model);
-  });
+  const res = await pooledCall(
+    modelId,
+    userId,
+    campaignId,
+    async (apiKey, model) => {
+      return generateSubjectLine(company, role, stack, userName, apiKey, model);
+    }
+  );
+  return res.text;
 }
 
 /** Generate reply using a key from the system pool */
 export async function pooledGenerateReply(
   emailText: string,
   resumeText: string,
-  modelId: string
+  modelId: string,
+  userId?: string
 ): Promise<string> {
-  return pooledCall(modelId, async (apiKey, model) => {
-    return generateReply(emailText, resumeText, model, apiKey);
-  });
+  const res = await pooledCall(
+    modelId,
+    userId,
+    undefined,
+    async (apiKey, model) => {
+      return generateReply(emailText, resumeText, model, apiKey);
+    }
+  );
+  return res.text;
 }

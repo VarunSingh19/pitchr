@@ -26,6 +26,10 @@ export async function GET() {
     usageCount: k.usageCount,
     lastUsedAt: k.lastUsedAt,
     rateLimitedUntil: k.rateLimitedUntil,
+    consecutiveFailures: k.consecutiveFailures ?? 0,
+    averageLatencyMs: k.averageLatencyMs ?? 0,
+    lastError: k.lastError ?? "",
+    latencyHistory: k.latencyHistory ?? [],
     createdAt: k.createdAt,
   }));
 
@@ -109,7 +113,7 @@ export async function POST(request: Request) {
   return Response.json({ success: true, id: newKey._id });
 }
 
-/** PATCH — Update a system API key (toggle active, update label/models) */
+/** PATCH — Update a system API key (toggle active, update label/models, reset health) */
 export async function PATCH(request: Request) {
   if (!verifyOrigin(request)) return forbiddenResponse();
 
@@ -119,7 +123,7 @@ export async function PATCH(request: Request) {
     return res as Response;
   }
 
-  const { keyId, isActive, label, supportedModels } = await request.json();
+  const { keyId, isActive, label, supportedModels, resetHealth } = await request.json();
 
   if (!keyId) {
     return Response.json({ error: "keyId is required" }, { status: 400 });
@@ -134,6 +138,14 @@ export async function PATCH(request: Request) {
 
   // If reactivating, clear rate limit
   if (isActive === true) {
+    updateFields.rateLimitedUntil = null;
+  }
+
+  if (resetHealth === true) {
+    updateFields.consecutiveFailures = 0;
+    updateFields.averageLatencyMs = 0;
+    updateFields.lastError = "";
+    updateFields.latencyHistory = [];
     updateFields.rateLimitedUntil = null;
   }
 

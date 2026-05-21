@@ -23,6 +23,16 @@ export interface IResume {
   parsedText: string;
 }
 
+export interface IPromptConfig {
+  targetGeography: string;
+  targetRoles: string[];
+  targetStack: string[];
+  companyTypes: string[];
+  minJobAgeDays: number;
+  researcherLocation: string;
+  hasConfigured?: boolean;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
@@ -34,6 +44,14 @@ export interface IUser extends Document {
   selectedModel: string;
   gmailConfig: IGmailConfig | null;
   resume: IResume | null;
+  promptConfig: IPromptConfig;
+  lastLoginAt?: Date;
+  quotas?: {
+    emailsPerDay: number;
+    emailsPerMonth: number;
+    maxCampaigns: number;
+    allowedModels: string[];
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +91,31 @@ const ResumeSchema = new Schema<IResume>(
   { _id: false }
 );
 
+const PromptConfigSchema = new Schema<IPromptConfig>(
+  {
+    targetGeography: {
+      type: String,
+      default: "Mumbai — specifically Malad and Andheri areas (also accept nearby: Goregaon, Jogeshwari, MIDC, SV Road, WEH, Link Road corridors)",
+    },
+    targetRoles: {
+      type: [String],
+      default: ["Full Stack Developer", "React Developer", "Node.js Developer", "MERN Stack Developer"],
+    },
+    targetStack: {
+      type: [String],
+      default: ["React", "Node.js", "MongoDB", "Express", "JavaScript", "TypeScript"],
+    },
+    companyTypes: {
+      type: [String],
+      default: ["Product startups", "IT services firms", "SaaS companies", "agencies actively posting jobs"],
+    },
+    minJobAgeDays: { type: Number, default: 90 },
+    researcherLocation: { type: String, default: "Mumbai, Maharashtra" },
+    hasConfigured: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
@@ -85,6 +128,22 @@ const UserSchema = new Schema<IUser>(
     selectedModel: { type: String, default: DEFAULT_MODEL.id },
     gmailConfig: { type: GmailConfigSchema, default: null },
     resume: { type: ResumeSchema, default: null },
+    promptConfig: { type: PromptConfigSchema, default: () => ({}) },
+    lastLoginAt: { type: Date },
+    quotas: {
+      type: {
+        emailsPerDay: { type: Number, default: 100 },
+        emailsPerMonth: { type: Number, default: 2000 },
+        maxCampaigns: { type: Number, default: 10 },
+        allowedModels: { type: [String], default: [] },
+      },
+      default: () => ({
+        emailsPerDay: 100,
+        emailsPerMonth: 2000,
+        maxCampaigns: 10,
+        allowedModels: [],
+      }),
+    },
   },
   { timestamps: true }
 );

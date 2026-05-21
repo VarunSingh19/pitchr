@@ -38,7 +38,7 @@ export async function nimChatCompletion(
     maxTokens?: number;
     topP?: number;
   } = {}
-): Promise<string> {
+): Promise<{ text: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
   const { temperature = 0.7, maxTokens = 2048, topP = 0.9 } = options;
 
   const response = await fetch(`${NIM_BASE_URL}/chat/completions`, {
@@ -72,7 +72,16 @@ export async function nimChatCompletion(
     throw new Error("NVIDIA NIM returned no choices");
   }
 
-  return data.choices[0].message.content.trim();
+  const text = data.choices[0].message.content.trim();
+  const usage = data.usage
+    ? {
+        promptTokens: data.usage.prompt_tokens || 0,
+        completionTokens: data.usage.completion_tokens || 0,
+        totalTokens: data.usage.total_tokens || 0,
+      }
+    : undefined;
+
+  return { text, usage };
 }
 
 /**
