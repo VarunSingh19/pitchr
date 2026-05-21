@@ -3,7 +3,7 @@
 import { Sparkles, CheckCircle2, AlertCircle, Loader2, Clock, Send } from "lucide-react";
 
 interface GenerationProgressProps {
-  pollingStatus: { generated: number; failed: number; total: number; status: string };
+  pollingStatus: { generated: number; failed: number; pending?: number; total: number; status: string };
   isGenerating: boolean;
   onGenerate: () => void;
   onRequeueFailed?: () => void;
@@ -26,10 +26,11 @@ export function GenerationProgress({
   autoSend = false,
   onAutoSendChange,
 }: GenerationProgressProps) {
-  const { generated, failed, total, status } = pollingStatus;
+  const { generated, failed, pending = 0, total, status } = pollingStatus;
   const completedCount = generated + failed;
   const progress = total > 0 ? (completedCount / total) * 100 : 0;
   const isDone = total > 0 && !isGenerating && completedCount === total;
+  const allPending = isGenerating && total > 0 && completedCount === 0 && pending > 0;
 
   return (
     <div className="space-y-6">
@@ -92,10 +93,19 @@ export function GenerationProgress({
           <div className="rounded-2xl border border-border-default bg-bg-surface p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-medium">
-                {isGenerating && (
+                {allPending && (
+                  <span className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-text-faint animate-pulse" />
+                    <span>Waiting in queue... <span className="text-text-muted font-normal">({pending} emails queued)</span></span>
+                  </span>
+                )}
+                {isGenerating && !allPending && (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-accent-primary" />
-                    Generating emails ({completedCount} of {total} done)...
+                    <span>
+                      Generating emails ({completedCount} of {total} done)
+                      {pending > 0 && <span className="text-text-muted font-normal ml-1">· {pending} in queue</span>}
+                    </span>
                   </span>
                 )}
                 {isDone && (
@@ -122,10 +132,14 @@ export function GenerationProgress({
             </div>
 
             <div className="w-full h-2 rounded-full bg-bg-base overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-accent-primary to-accent-primary-hover"
-                style={{ width: `${progress}%` }}
-              />
+              {allPending ? (
+                <div className="h-full rounded-full bg-text-faint/30 animate-pulse" style={{ width: '100%' }} />
+              ) : (
+                <div
+                  className="h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-accent-primary to-accent-primary-hover"
+                  style={{ width: `${progress}%` }}
+                />
+              )}
             </div>
           </div>
 
@@ -143,8 +157,12 @@ export function GenerationProgress({
               <p className="text-xl font-bold text-error">{failed}</p>
             </div>
             <div className="bg-bg-surface border border-border-default rounded-xl p-4">
-              <p className="text-xs text-accent-primary font-medium uppercase tracking-wider mb-1">Status</p>
-              <p className="text-sm font-bold uppercase tracking-tight">{status}</p>
+              <p className="text-xs text-accent-primary font-medium uppercase tracking-wider mb-1">
+                {pending > 0 ? "In Queue" : "Status"}
+              </p>
+              <p className="text-sm font-bold uppercase tracking-tight">
+                {pending > 0 ? pending : status}
+              </p>
             </div>
           </div>
         </>

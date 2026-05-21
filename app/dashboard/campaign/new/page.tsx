@@ -435,7 +435,7 @@ export default function NewCampaignPage() {
     setIsSending(false);
     setSendComplete(true);
     clearDraft(); // Campaign complete — clear the draft
-  }, [generatedEmails, userConfig, resumeFile]);
+  }, [generatedEmails, userConfig, resumeFile, useSavedResume]);
 
   // ── Reset ──
   const handleReset = useCallback(() => {
@@ -450,6 +450,14 @@ export default function NewCampaignPage() {
     setSendComplete(false);
     setCurrentStep("upload");
     setDraftRestored(false);
+    setCampaignId("");
+    setPollingStatus({ generated: 0, failed: 0, total: 0, status: "DRAFT" });
+    setAlreadySent(new Set());
+    setInvalidEmails(new Set());
+    setAutoSend(false);
+    setUseSavedResume(true);
+    setEditingLead(null);
+    setDeletingLead(null);
     clearDraft();
   }, []);
 

@@ -131,20 +131,23 @@ export const generateSingleEmail = inngest.createFunction(
 
       const doneCount = await EmailLog.countDocuments({
         campaignId: new Types.ObjectId(campaignId),
-        status: { $in: ["GENERATED", "FAILED", "SENT"] },
+        status: { $in: ["GENERATED", "FAILED", "SENT", "BOUNCED"] },
       });
 
       if (doneCount >= campaign.totalLeads) {
-        if (campaign.autoSend) {
-          // All generated + auto-send ON → trigger background send
-          await Campaign.updateOne({ _id: campaignId }, { status: "SENDING" });
+        // Atomic transition — only ONE concurrent worker can succeed
+        const nextStatus = campaign.autoSend ? "SENDING" : "READY";
+        const transitioned = await Campaign.findOneAndUpdate(
+          { _id: campaignId, status: "GENERATING" },
+          { status: nextStatus }
+        );
+
+        // Only the winner fires auto-send
+        if (transitioned && campaign.autoSend) {
           await inngest.send({
             name: "campaign/auto-send",
             data: { campaignId, userId },
           });
-        } else {
-          // All generated + manual mode → mark READY for review
-          await Campaign.updateOne({ _id: campaignId }, { status: "READY" });
         }
       }
     });
@@ -222,21 +225,33 @@ export const autoSendCampaign = inngest.createFunction(
 
     // Step 2: Send each email sequentially
     const sendResult = await step.run("send-all-emails", async () => {
+      await dbConnect();
+
+      // Re-fetch only GENERATED emails to prevent re-sending on Inngest retry
+      const emailsToSend = await EmailLog.find({
+        campaignId: new Types.ObjectId(campaignId),
+        status: "GENERATED",
+      }).lean();
+
+      if (emailsToSend.length === 0) {
+        return { sent: 0, failed: 0 };
+      }
+
       const transporter = createTransporter(context.senderEmail, context.appPassword);
 
       // Verify credentials first
       try {
         await transporter.verify();
       } catch {
-        return { sent: 0, failed: context.emails.length, error: "Gmail credentials invalid" };
+        return { sent: 0, failed: emailsToSend.length, error: "Gmail credentials invalid" };
       }
 
       const fromAddress = `${context.senderName} <${context.senderEmail}>`;
       let sent = 0;
       let failed = 0;
 
-      for (let i = 0; i < context.emails.length; i++) {
-        const email = context.emails[i];
+      for (let i = 0; i < emailsToSend.length; i++) {
+        const email = emailsToSend[i];
 
         try {
           const { messageId } = await sendEmail({
@@ -266,7 +281,7 @@ export const autoSendCampaign = inngest.createFunction(
         }
 
         // Rate limiting: 4s delay between sends
-        if (i < context.emails.length - 1) {
+        if (i < emailsToSend.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 4000));
         }
       }
@@ -554,7 +569,7 @@ export const verifyDelivery = inngest.createFunction(
             parsed.subject?.toLowerCase().includes("delivery incomplete") ||
             parsed.subject?.toLowerCase().includes("mail delivery failed") ||
             parsed.subject?.toLowerCase().includes("returned mail") ||
-            parsed.headers?.get("content-type")?.includes("delivery-status");
+            String(parsed.headers?.get("content-type") || "").includes("delivery-status");
 
           if (isBounce) {
             bouncedMessageIds.push(inReplyTo);

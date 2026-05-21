@@ -95,7 +95,7 @@ export async function POST() {
           parsed.subject?.toLowerCase().includes('delivery incomplete') ||
           parsed.subject?.toLowerCase().includes('mail delivery failed') ||
           parsed.subject?.toLowerCase().includes('returned mail') ||
-          parsed.headers?.get('content-type')?.includes('delivery-status');
+          String(parsed.headers?.get('content-type') || '').includes('delivery-status');
 
         if (isBounce) {
           // Update EmailLog to BOUNCED (only if currently SENT to prevent double-counting)

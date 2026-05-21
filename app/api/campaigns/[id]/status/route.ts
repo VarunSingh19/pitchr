@@ -24,14 +24,20 @@ export async function GET(
     
     const generated = logs.filter(l => l.status === "GENERATED" || l.status === "SENT").length;
     const failed = logs.filter(l => l.status === "FAILED").length;
+    const pending = logs.filter(l => l.status === "PENDING").length;
+    const sending = logs.filter(l => l.status === "SENDING").length;
     const total = campaign.totalLeads;
     const status = campaign.status;
 
     return Response.json({ 
       generated, 
-      failed, 
+      failed,
+      pending,
+      sending,
       total, 
-      status 
+      status,
+      sentCount: campaign.sentCount || 0,
+      bouncedCount: campaign.bouncedCount || 0,
     });
   } catch (error) {
     return Response.json({ error: "Failed to fetch status" }, { status: 500 });
