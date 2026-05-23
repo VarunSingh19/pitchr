@@ -29,6 +29,7 @@ try {
     fs.copyFileSync(logoSource, path.join(publicDir, "logo.png"));
     fs.copyFileSync(logoSource, path.join(publicDir, "icon.png"));
     fs.copyFileSync(logoSource, path.join(publicDir, "favicon.ico"));
+    fs.copyFileSync(logoSource, path.join(process.cwd(), "app", "favicon.ico"));
     console.log("NextConfig: Successfully copied logo files.");
   }
 } catch (e) {

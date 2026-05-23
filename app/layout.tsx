@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://pitchr.ai",
+    url: "https://pitchrr-ai.vercel.app",
     title: "Pitchr AI — AI-Powered Cold Email Outreach",
     description: "Generate highly personalized cold email campaigns at scale. Build, review, and auto-dispatch outbound emails via Gmail with your resume attached, powered by advanced AI models.",
     siteName: "Pitchr AI",
