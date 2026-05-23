@@ -61,6 +61,24 @@ export default function AdminUsersPage() {
   const [editAllowedModels, setEditAllowedModels] = useState<string[]>([]);
   const [savingQuotas, setSavingQuotas] = useState(false);
 
+  // Custom confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+    confirmLabel?: string;
+    isDestructive?: boolean;
+  } | null>(null);
+
+  // Custom alert modal/toast state
+  const [alertModal, setAlertModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
+
   const [mounted, setMounted] = useState(false);
   const [activeModels, setActiveModels] = useState<string[]>([]);
 
@@ -89,59 +107,94 @@ export default function AdminUsersPage() {
 
   // Handle role modification
   const handleToggleRole = async (userId: string, currentRole: "user" | "admin") => {
-    if (
-      !confirm(
-        `Are you sure you want to change this user's role to ${
-          currentRole === "admin" ? "User" : "Admin"
-        }?`
-      )
-    )
-      return;
-
-    setUpdatingUserId(userId);
-    try {
-      const newRole = currentRole === "admin" ? "user" : "admin";
-      const res = await fetch("/api/admin/users", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, role: newRole }),
-      });
-      if (res.ok) {
-        await fetchUsers();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || "Failed to update role");
+    const actionText = currentRole === "admin" ? "Demote" : "Promote";
+    setConfirmModal({
+      isOpen: true,
+      title: `${actionText} User`,
+      message: `Are you sure you want to change this user's role to ${
+        currentRole === "admin" ? "User" : "Admin"
+      }?`,
+      confirmLabel: actionText,
+      isDestructive: currentRole === "admin",
+      onConfirm: async () => {
+        setUpdatingUserId(userId);
+        try {
+          const newRole = currentRole === "admin" ? "user" : "admin";
+          const res = await fetch("/api/admin/users", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId, role: newRole }),
+          });
+          if (res.ok) {
+            await fetchUsers();
+            setAlertModal({
+              isOpen: true,
+              title: "Role Updated",
+              message: `User's role successfully updated to ${newRole === "admin" ? "Admin" : "User"}.`,
+              type: "success"
+            });
+          } else {
+            const err = await res.json().catch(() => ({}));
+            setAlertModal({
+              isOpen: true,
+              title: "Update Failed",
+              message: err.error || "Failed to update role.",
+              type: "error"
+            });
+          }
+        } catch {
+          setAlertModal({
+            isOpen: true,
+            title: "Network Error",
+            message: "Failed to update role due to connection issues.",
+            type: "error"
+          });
+        } finally {
+          setUpdatingUserId(null);
+        }
       }
-    } catch {
-      alert("Failed to update role");
-    } finally {
-      setUpdatingUserId(null);
-    }
+    });
   };
 
   // Trigger impersonation
   const handleImpersonate = async (userId: string, userEmail: string) => {
-    if (!confirm(`Switch session and impersonate ${userEmail}?`)) return;
-
-    setUpdatingUserId(userId);
-    try {
-      const res = await fetch("/api/admin/impersonate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      if (res.ok) {
-        // Redirect to user dashboard to start looking around as them
-        window.location.href = "/dashboard";
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || "Failed to start impersonation");
+    setConfirmModal({
+      isOpen: true,
+      title: "Impersonate User",
+      message: `Switch session and impersonate ${userEmail}?`,
+      confirmLabel: "Impersonate",
+      isDestructive: false,
+      onConfirm: async () => {
+        setUpdatingUserId(userId);
+        try {
+          const res = await fetch("/api/admin/impersonate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId }),
+          });
+          if (res.ok) {
+            window.location.href = "/dashboard";
+          } else {
+            const err = await res.json().catch(() => ({}));
+            setAlertModal({
+              isOpen: true,
+              title: "Impersonation Failed",
+              message: err.error || "Failed to start impersonation.",
+              type: "error"
+            });
+          }
+        } catch {
+          setAlertModal({
+            isOpen: true,
+            title: "Network Error",
+            message: "Failed to start impersonation due to connection issues.",
+            type: "error"
+          });
+        } finally {
+          setUpdatingUserId(null);
+        }
       }
-    } catch {
-      alert("Failed to start impersonation");
-    } finally {
-      setUpdatingUserId(null);
-    }
+    });
   };
 
   // Open Quotas Editor Modal
@@ -182,12 +235,28 @@ export default function AdminUsersPage() {
       if (res.ok) {
         setEditingUser(null);
         await fetchUsers();
+        setAlertModal({
+          isOpen: true,
+          title: "Quotas Saved",
+          message: "User limits successfully updated and persisted.",
+          type: "success"
+        });
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Failed to save quotas");
+        setAlertModal({
+          isOpen: true,
+          title: "Update Failed",
+          message: err.error || "Failed to save quotas.",
+          type: "error"
+        });
       }
     } catch {
-      alert("Failed to save quotas");
+      setAlertModal({
+        isOpen: true,
+        title: "Network Error",
+        message: "Failed to save quotas due to connection issues.",
+        type: "error"
+      });
     } finally {
       setSavingQuotas(false);
     }
@@ -629,6 +698,90 @@ export default function AdminUsersPage() {
                 ) : (
                   <span>Save Quotas</span>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Custom Confirmation Modal ── */}
+      {confirmModal?.isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-bg-surface border border-border-default rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-scale-in">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                  confirmModal.isDestructive ? "bg-red-500/10 text-red-500" : "bg-orange-500/10 text-orange-400"
+                )}>
+                  <HelpCircle className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-bold text-text-primary">{confirmModal.title}</h3>
+              </div>
+              <p className="text-xs text-text-secondary leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border-default bg-bg-base/40">
+              <button
+                onClick={() => setConfirmModal(prev => prev ? { ...prev, isOpen: false } : null)}
+                className="px-4 py-2 border border-border-default hover:bg-bg-elevated rounded-xl text-xs font-semibold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const onConfirm = confirmModal.onConfirm;
+                  setConfirmModal(prev => prev ? { ...prev, isOpen: false } : null);
+                  await onConfirm();
+                }}
+                className={cn(
+                  "px-5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md active:scale-[0.98]",
+                  confirmModal.isDestructive
+                    ? "bg-red-500 hover:bg-red-400 text-white shadow-red-500/10"
+                    : "bg-orange-500 hover:bg-orange-400 text-white shadow-orange-500/10"
+                )}
+              >
+                {confirmModal.confirmLabel || "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Custom Alert Modal ── */}
+      {alertModal?.isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-bg-surface border border-border-default rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
+            <div className="p-6 text-center space-y-4">
+              <div className="mx-auto flex items-center justify-center">
+                {alertModal.type === "success" && (
+                  <div className="w-12 h-12 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6" />
+                  </div>
+                )}
+                {alertModal.type === "error" && (
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 flex items-center justify-center">
+                    <AlertCircle className="w-6 h-6 animate-pulse" />
+                  </div>
+                )}
+                {alertModal.type === "info" && (
+                  <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
+                    <HelpCircle className="w-6 h-6" />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-text-primary">{alertModal.title}</h3>
+                <p className="text-xs text-text-secondary leading-relaxed">{alertModal.message}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-center p-4 border-t border-border-default bg-bg-base/40">
+              <button
+                onClick={() => setAlertModal(prev => prev ? { ...prev, isOpen: false } : null)}
+                className="w-full py-2 bg-bg-elevated hover:bg-bg-base border border-border-default rounded-xl text-xs font-semibold transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
