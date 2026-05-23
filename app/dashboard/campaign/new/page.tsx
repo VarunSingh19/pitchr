@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2, Copy, X, AlertTriangle, Plus, Terminal } from "lucide-react";
 import type { Lead, GeneratedEmail, SendResult } from "@/lib/types";
 import { FileUpload } from "@/components/file-upload";
