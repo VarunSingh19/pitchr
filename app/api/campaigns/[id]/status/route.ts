@@ -24,20 +24,41 @@ export async function GET(
     
     const generated = logs.filter(l => l.status === "GENERATED" || l.status === "SENT").length;
     const failed = logs.filter(l => l.status === "FAILED").length;
-    const pending = logs.filter(l => l.status === "PENDING").length;
+    const pending = logs.filter(l => l.status === "QUEUED").length;
     const sending = logs.filter(l => l.status === "SENDING").length;
+    const sent = logs.filter(l => l.status === "SENT").length;
+    const bounced = logs.filter(l => l.status === "BOUNCED").length;
     const total = campaign.totalLeads;
     const status = campaign.status;
+
+    // Include per-email details for auto-send progress tracking
+    const emailDetails = campaign.autoSend ? logs.map(l => ({
+      companyId: l._id.toString(),
+      company: l.companyName,
+      role: l.role || "Role",
+      email: l.recipientEmail,
+      subject: l.subject,
+      status: l.status === "GENERATED" ? "queued" 
+            : l.status === "SENT" ? "sent" 
+            : l.status === "FAILED" ? "failed"
+            : l.status === "BOUNCED" ? "failed"
+            : l.status === "QUEUED" ? "queued"
+            : "sending",
+      error: l.error || l.generationError || undefined,
+    })) : undefined;
 
     return Response.json({ 
       generated, 
       failed,
       pending,
       sending,
+      sent,
+      bounced,
       total, 
       status,
       sentCount: campaign.sentCount || 0,
       bouncedCount: campaign.bouncedCount || 0,
+      emailDetails,
     });
   } catch (error) {
     return Response.json({ error: "Failed to fetch status" }, { status: 500 });

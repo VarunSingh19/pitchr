@@ -50,24 +50,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }).catch(() => {});
       }
 
-      // Always refresh role from DB so promotions take effect immediately
+      // Always refresh role and plan from DB so promotions/upgrades take effect immediately
       if (token.userId) {
         try {
           await dbConnect();
-          const dbUser = await User.findById(token.userId).select("role").lean();
+          const dbUser = await User.findById(token.userId).select("role plan").lean();
           token.role = dbUser?.role || "user";
+          token.plan = dbUser?.plan || "free";
         } catch {
           if (!token.role) token.role = "user";
+          if (!token.plan) token.plan = "free";
         }
       }
 
       return token;
     },
     async session({ session, token }) {
-      // Expose userId and role in the client-side session
+      // Expose userId, role and plan in the client-side session
       if (token.userId && session.user) {
         session.user.id = token.userId as string;
         (session.user as unknown as Record<string, unknown>).role = token.role || "user";
+        (session.user as unknown as Record<string, unknown>).plan = token.plan || "free";
       }
 
       // Session Impersonation Logic:
@@ -86,6 +89,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               session.user.email = impersonatedUser.email;
               session.user.name = impersonatedUser.name || impersonatedUser.email.split("@")[0];
               (session.user as unknown as Record<string, unknown>).role = impersonatedUser.role || "user";
+              (session.user as unknown as Record<string, unknown>).plan = impersonatedUser.plan || "free";
               
               // Inject impersonation metadata
               (session as any).isImpersonating = true;

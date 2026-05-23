@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   CheckCircle2,
   AlertCircle,
@@ -8,8 +9,8 @@ import {
   Send,
   Download,
   RotateCcw,
-  Pause,
   XCircle,
+  Timer,
 } from "lucide-react";
 import type { SendResult } from "@/lib/types";
 import { downloadCsv } from "@/lib/csv-export";
@@ -19,6 +20,7 @@ interface SendProgressProps {
   isSending: boolean;
   isComplete: boolean;
   onReset: () => void;
+  autoResetSeconds?: number;
 }
 
 const STATUS_ICONS = {
@@ -34,13 +36,30 @@ export function SendProgress({
   isSending,
   isComplete,
   onReset,
+  autoResetSeconds,
 }: SendProgressProps) {
   const sentCount = results.filter((r) => r.status === "sent").length;
   const failedCount = results.filter((r) => r.status === "failed").length;
   const skippedCount = results.filter((r) => r.status === "skipped").length;
+  const sendingCount = results.filter((r) => r.status === "sending").length;
   const total = results.length;
   const completed = sentCount + failedCount + skippedCount;
   const progress = total > 0 ? (completed / total) * 100 : 0;
+
+  // Auto-reset countdown
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isComplete && autoResetSeconds && autoResetSeconds > 0) {
+      setCountdown(autoResetSeconds);
+    }
+  }, [isComplete, autoResetSeconds]);
+
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown((prev) => (prev ?? 1) - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   // Estimated time remaining (4s per email)
   const remaining = total - completed;
@@ -66,8 +85,21 @@ export function SendProgress({
             </div>
             <h2 className="text-2xl font-bold mb-1">Batch Complete</h2>
             <p className="text-text-secondary text-sm">
-              All emails have been processed.
+              {sentCount} of {total} emails sent successfully.
+              {failedCount > 0 && ` ${failedCount} failed.`}
             </p>
+            {countdown !== null && countdown > 0 && (
+              <div className="flex items-center justify-center gap-2 mt-3 text-xs text-text-muted">
+                <Timer className="w-3.5 h-3.5" />
+                Starting new campaign in {countdown}s...
+                <button
+                  onClick={onReset}
+                  className="text-accent-primary hover:text-accent-primary-hover underline ml-1"
+                >
+                  Reset now
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -89,10 +121,14 @@ export function SendProgress({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="rounded-xl bg-bg-surface border border-border-default p-4 text-center">
           <p className="text-2xl font-bold text-success">{sentCount}</p>
           <p className="text-xs text-text-muted mt-1">Sent</p>
+        </div>
+        <div className="rounded-xl bg-bg-surface border border-border-default p-4 text-center">
+          <p className="text-2xl font-bold text-accent-primary">{sendingCount}</p>
+          <p className="text-xs text-text-muted mt-1">Sending</p>
         </div>
         <div className="rounded-xl bg-bg-surface border border-border-default p-4 text-center">
           <p className="text-2xl font-bold text-error">{failedCount}</p>
@@ -120,8 +156,9 @@ export function SendProgress({
             className="h-full rounded-full transition-all duration-700 ease-out"
             style={{
               width: `${progress}%`,
-              background: `linear-gradient(90deg, var(--accent-primary) 0%, ${failedCount > 0 ? "var(--state-error)" : "var(--state-success)"
-                } 100%)`,
+              background: `linear-gradient(90deg, var(--accent-primary) 0%, ${
+                failedCount > 0 ? "var(--state-error)" : "var(--state-success)"
+              } 100%)`,
             }}
           />
         </div>
@@ -156,8 +193,9 @@ export function SendProgress({
                   )}
                   <div className="flex items-center gap-1.5">
                     <StatusIcon
-                      className={`w-3.5 h-3.5 ${config.color} ${result.status === "sending" ? "animate-spin" : ""
-                        }`}
+                      className={`w-3.5 h-3.5 ${config.color} ${
+                        result.status === "sending" ? "animate-spin" : ""
+                      }`}
                     />
                     <span className={`text-xs font-medium ${config.color}`}>
                       {config.label}

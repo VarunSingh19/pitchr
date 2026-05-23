@@ -171,8 +171,8 @@ export default function NewCampaignPage() {
 You are a senior B2B lead researcher and talent acquisition analyst with 12+ years of experience in
 corporate intelligence, HR sourcing, and developer hiring markets in India's tech ecosystem.
 You specialize in: (1) verified contact discovery using multi-source cross-referencing,
-(2) \${shortGeo} startup and enterprise tech hiring intelligence,
-(3) \${rolesStr} engineering job market analysis.
+(2) ${shortGeo} startup and enterprise tech hiring intelligence,
+(3) ${rolesStr} engineering job market analysis.
 
 ---
 
@@ -207,27 +207,27 @@ Deliver the final JSON array inside <final> tags.
 ---
 
 CONTEXT:
-- Target geography: \${geo}
-- Target roles: \${rolesList}
-- Target company types: \${companyStr}
-- Minimum requirement: Company must have a job posting dated within the last \${jobAge} days
-- Researcher location context: \${location}
+- Target geography: ${geo}
+- Target roles: ${rolesList}
+- Target company types: ${companyStr}
+- Minimum requirement: Company must have a job posting dated within the last ${jobAge} days
+- Researcher location context: ${location}
 
 ---
 
 TASK:
-Find at least 20 companies in \${shortGeo} actively hiring \${rolesStr} developers. For each company, run a complete multi-source verification pipeline using your available tools to find and confirm HR/careers contact emails. Return results as a strict JSON array.
+Find at least 20 companies in ${shortGeo} actively hiring ${rolesStr} developers. For each company, run a complete multi-source verification pipeline using your available tools to find and confirm HR/careers contact emails. Return results as a strict JSON array.
 
 <pipeline>
 
   <step id="S1" label="DISCOVERY">
     USE THESE TOOLS to find actively hiring companies:
-    - web_search: "\${role1} jobs in \${shortGeo} site:linkedin.com"
-    - web_search: "\${tech1} \${tech2} developer hiring \${shortGeo} Glassdoor"
-    - web_search: "\${role2} jobs in \${shortGeo} Indeed"
-    - web_search: "\${role1} in \${shortGeo} Cutshort"
-    - web_search: "\${tech1} developer hiring \${shortGeo} Wellfound"
-    - web_search: "software company in \${shortGeo} hiring developer 2026"
+    - web_search: "${role1} jobs in ${shortGeo} site:linkedin.com"
+    - web_search: "${tech1} ${tech2} developer hiring ${shortGeo} Glassdoor"
+    - web_search: "${role2} jobs in ${shortGeo} Indeed"
+    - web_search: "${role1} in ${shortGeo} Cutshort"
+    - web_search: "${tech1} developer hiring ${shortGeo} Wellfound"
+    - web_search: "software company in ${shortGeo} hiring developer 2026"
     Run ALL of the above. Collect company names, job post URLs, and posting dates.
     NEVER rely on memory for this step — only tool results count.
   </step>
@@ -244,18 +244,18 @@ Find at least 20 companies in \${shortGeo} actively hiring \${rolesStr} develope
 
     CHECK 2 — LinkedIn job post:
       - web_fetch: the LinkedIn job post URL found in S1
-      - web_search: "[Company Name] HR email LinkedIn \${shortGeo}"
+      - web_search: "[Company Name] HR email LinkedIn ${shortGeo}"
       - Look for: "apply via email", recruiter email in post description, LinkedIn recruiter profile with email
       - If found: set email_verified: true, email_source: "LinkedIn job post [URL]"
 
     CHECK 3 — Glassdoor:
-      - web_search: "[Company Name] Glassdoor \${shortGeo} HR contact email"
+      - web_search: "[Company Name] Glassdoor ${shortGeo} HR contact email"
       - web_fetch: Glassdoor company page if returned
       - Look for: email in font-mono or interview reviews mentioning HR contact
       - If found: set email_verified: true, email_source: "Glassdoor: [URL]"
 
     CHECK 4 — Indeed:
-      - web_search: "[Company Name] Indeed \${shortGeo} \${role1} email"
+      - web_search: "[Company Name] Indeed ${shortGeo} ${role1} email"
       - web_fetch: Indeed job listing URL if returned
       - Look for: "send resume to [email]", employer contact details
       - If found: set email_verified: true, email_source: "Indeed: [URL]"
@@ -267,7 +267,7 @@ Find at least 20 companies in \${shortGeo} actively hiring \${rolesStr} develope
       - If found: set email_verified: true, email_source: "Cutshort/Wellfound: [URL]"
 
     CHECK 6 — General web sweep:
-      - web_search: "[Company Name] \${shortGeo} HR email careers"
+      - web_search: "[Company Name] ${shortGeo} HR email careers"
       - web_search: "[Company Name] jobs apply email"
       - Look for: press releases, job aggregators, GitHub org pages with contact info
       - If found: set email_verified: true, email_source: "[URL]"
@@ -286,7 +286,7 @@ Find at least 20 companies in \${shortGeo} actively hiring \${rolesStr} develope
     {
       "id": [sequential number],
       "company": "[Exact legal/brand name from source]",
-      "location": "\${location}",
+      "location": "${location}",
       "area": "[Specific neighborhood or corridor from job post/map]",
       "role": "[Exact job title from the job post]",
       "description": "[2 sentences: what the company does + why they are hiring this role]",
@@ -294,10 +294,10 @@ Find at least 20 companies in \${shortGeo} actively hiring \${rolesStr} develope
       "alt_email": "[second confirmed email or null]",
       "website": "[domain.com — no https, no trailing slash]",
       "type": "[Full-time / Contract / Freelance — from job post]",
-      "stack": ["\${tech1}", "\${tech2}"],
+      "stack": ["${tech1}", "${tech2}"],
       "email_verified": [true / false],
       "email_source": "[exact URL or 'Not found after 6-step verification']",
-      "fit_score": "[1 sentence: why this role matches a \${rolesStr} developer]",
+      "fit_score": "[1 sentence: why this role matches a ${rolesStr} developer]",
       "status": "[Actively Hiring / Hiring / Open — based on post recency]"
     }
   </step>
@@ -308,31 +308,31 @@ Find at least 20 companies in \${shortGeo} actively hiring \${rolesStr} develope
 
 FEW-SHOT EXAMPLE (Required reasoning depth):
 
-INPUT: Found "Bluebirds Tech Pvt Ltd" hiring \${role1} in \${shortGeo} on LinkedIn.
+INPUT: Found "Bluebirds Tech Pvt Ltd" hiring ${role1} in ${shortGeo} on LinkedIn.
 
 REASONING:
   - S1 source: LinkedIn job post URL linkedin.com/jobs/view/123456 — post dated 12 days ago ✓
   - CHECK 1: Fetched bluebirdstech.com/careers — found "send your resume to careers@bluebirdstech.com" ✓
   - CHECK 2: LinkedIn post says "Apply on site" — no email in post body
   - Decision: email_verified: true — confirmed from company careers page
-  - fit_score: Hiring \${role1} with \${tech1} + \${tech2} stack — direct match
+  - fit_score: Hiring ${role1} with ${tech1} + ${tech2} stack — direct match
 
 OUTPUT:
 {
   "id": 1,
   "company": "Bluebirds Tech Pvt Ltd",
-  "location": "\${location}",
+  "location": "${location}",
   "area": "Local Area",
-  "role": "\${role1}",
+  "role": "${role1}",
   "description": "Bluebirds Tech builds B2B SaaS dashboards for logistics companies. They are expanding their team to handle new client integrations.",
   "contact_email": "careers@bluebirdstech.com",
   "alt_email": null,
   "website": "bluebirdstech.com",
   "type": "Full-time",
-  "stack": ["\${tech1}", "\${tech2}"],
+  "stack": ["${tech1}", "${tech2}"],
   "email_verified": true,
   "email_source": "https://bluebirdstech.com/careers — direct email in page text",
-  "fit_score": "Exact \${rolesStr} stack match; SaaS product work with real user scale",
+  "fit_score": "Exact ${rolesStr} stack match; SaaS product work with real user scale",
   "status": "Actively Hiring"
 }
 
@@ -369,7 +369,7 @@ SELF-CHECK (run after generating all records, fix before delivering output):
    without a source URL? → If yes, set to null and email_verified: false
 4. Are there any two records with the same company name? → Deduplicate
 5. Does every stack array contain at least 2 technologies from the actual job post?
-6. Is every "area" field a real local area in \${shortGeo}?
+6. Is every "area" field a real local area in ${shortGeo}?
 7. Were at least 5 different tool queries run across S1 discovery?
 8. Were at least 3 verification checks run per company in S2?
 9. Are there at least 20 records total?
@@ -628,11 +628,36 @@ If any check fails → fix the affected records before outputting <final>.`;
     }
   }, []);
 
+  // ── Reset ──
+  const handleReset = useCallback(() => {
+    setLeads([]);
+    setResumeFile(null);
+    setResumeText("");
+    setResumeFileName("");
+    setGeneratedEmails([]);
+    setIsGenerating(false);
+    setSendResults([]);
+    setIsSending(false);
+    setSendComplete(false);
+    setCurrentStep("upload");
+    setDraftRestored(false);
+    setCampaignId("");
+    setPollingStatus({ generated: 0, failed: 0, total: 0, status: "DRAFT" });
+    setAlreadySent(new Set());
+    setInvalidEmails(new Set());
+    setAutoSend(false);
+    setUseSavedResume(true);
+    setEditingLead(null);
+    setDeletingLead(null);
+    clearDraft();
+  }, []);
+
   // ── Polling Logic ──
   useEffect(() => {
     let interval: NodeJS.Timeout;
+    let autoResetTimer: NodeJS.Timeout;
 
-    if (isGenerating && campaignId) {
+    if ((isGenerating || (autoSend && isSending)) && campaignId) {
       interval = setInterval(async () => {
         try {
           const res = await fetch(`/api/campaigns/${campaignId}/status`);
@@ -640,7 +665,57 @@ If any check fails → fix the affected records before outputting <final>.`;
           const data = await res.json();
           setPollingStatus(data);
 
-          if (data.generated + data.failed >= data.total && data.total > 0) {
+          // Auto-send flow: generation done → transition to send step, keep polling
+          if (autoSend && data.generated + data.failed >= data.total && data.total > 0 && isGenerating) {
+            setIsGenerating(false);
+
+            // Build send results from emailDetails
+            if (data.emailDetails) {
+              const results: SendResult[] = data.emailDetails.map((e: any) => ({
+                companyId: e.companyId,
+                company: e.company,
+                role: e.role,
+                email: e.email,
+                subject: e.subject,
+                status: e.status as SendResult["status"],
+                error: e.error,
+              }));
+              setSendResults(results);
+            }
+
+            setIsSending(true);
+            setCurrentStep("send");
+          }
+
+          // Auto-send: update send results from emailDetails during sending
+          if (autoSend && isSending && data.emailDetails) {
+            const results: SendResult[] = data.emailDetails.map((e: any) => ({
+              companyId: e.companyId,
+              company: e.company,
+              role: e.role,
+              email: e.email,
+              subject: e.subject,
+              status: e.status as SendResult["status"],
+              error: e.error,
+            }));
+            setSendResults(results);
+          }
+
+          // Auto-send complete: campaign finished
+          if (autoSend && (data.status === "COMPLETED" || data.status === "FAILED") && isSending) {
+            setIsSending(false);
+            setSendComplete(true);
+            clearInterval(interval);
+            clearDraft();
+
+            // Auto-reset after 8 seconds so user can see results briefly
+            autoResetTimer = setTimeout(() => {
+              handleReset();
+            }, 8000);
+          }
+
+          // Normal flow (no auto-send): stop polling when generation is done
+          if (!autoSend && data.generated + data.failed >= data.total && data.total > 0) {
             setIsGenerating(false);
             clearInterval(interval);
             // Fetch the final emails for preview
@@ -659,8 +734,9 @@ If any check fails → fix the affected records before outputting <final>.`;
 
     return () => {
       if (interval) clearInterval(interval);
+      if (autoResetTimer) clearTimeout(autoResetTimer);
     };
-  }, [isGenerating, campaignId]);
+  }, [isGenerating, isSending, campaignId, autoSend, handleReset]);
 
   const handleGenerate = useCallback(async () => {
     if (!userConfig) return;
@@ -692,7 +768,10 @@ If any check fails → fix the affected records before outputting <final>.`;
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: `Campaign ${new Date().toLocaleDateString()}` }),
       });
-      if (!createRes.ok) throw new Error("Failed to create campaign");
+      if (!createRes.ok) {
+        const errData = await createRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to create campaign");
+      }
       const campaign = await createRes.json();
       const cId = campaign._id;
       setCampaignId(cId);
@@ -716,7 +795,23 @@ If any check fails → fix the affected records before outputting <final>.`;
     } catch (error) {
       console.error(error);
       setIsGenerating(false);
-      alert(error instanceof Error ? error.message : "Failed to start campaign");
+      const msg = error instanceof Error ? error.message : "Failed to start campaign";
+      
+      if (
+        msg.toLowerCase().includes("quota") ||
+        msg.toLowerCase().includes("plan") ||
+        msg.toLowerCase().includes("limit")
+      ) {
+        if (
+          confirm(
+            `${msg}\n\nWould you like to navigate to your Billing & Usage dashboard to upgrade your plan and increase limits?`
+          )
+        ) {
+          window.location.href = "/dashboard/billing";
+        }
+      } else {
+        alert(msg);
+      }
     }
   }, [leads, resumeText, userConfig, useSavedResume, autoSend, invalidEmails, alreadySent]);
 
@@ -834,30 +929,6 @@ If any check fails → fix the affected records before outputting <final>.`;
     setSendComplete(true);
     clearDraft(); // Campaign complete — clear the draft
   }, [generatedEmails, userConfig, resumeFile, useSavedResume]);
-
-  // ── Reset ──
-  const handleReset = useCallback(() => {
-    setLeads([]);
-    setResumeFile(null);
-    setResumeText("");
-    setResumeFileName("");
-    setGeneratedEmails([]);
-    setIsGenerating(false);
-    setSendResults([]);
-    setIsSending(false);
-    setSendComplete(false);
-    setCurrentStep("upload");
-    setDraftRestored(false);
-    setCampaignId("");
-    setPollingStatus({ generated: 0, failed: 0, total: 0, status: "DRAFT" });
-    setAlreadySent(new Set());
-    setInvalidEmails(new Set());
-    setAutoSend(false);
-    setUseSavedResume(true);
-    setEditingLead(null);
-    setDeletingLead(null);
-    clearDraft();
-  }, []);
 
   // ── Discard draft ──
   const handleDiscardDraft = useCallback(() => {
@@ -1744,6 +1815,7 @@ If any check fails → fix the affected records before outputting <final>.`;
           isSending={isSending}
           isComplete={sendComplete}
           onReset={handleReset}
+          autoResetSeconds={autoSend ? 8 : undefined}
         />
       )}
     </div>

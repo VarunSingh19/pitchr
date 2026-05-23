@@ -27,6 +27,9 @@ export async function checkUserQuotas(
   additionalEmailsCount = 0
 ): Promise<QuotaCheckResult> {
   await dbConnect();
+  
+  // Enforce plan expiry first
+  await enforcePlanExpiry(user);
 
   const emailsPerDay = user.quotas?.emailsPerDay ?? 100;
   const emailsPerMonth = user.quotas?.emailsPerMonth ?? 2000;
@@ -63,11 +66,19 @@ export async function checkUserQuotas(
     campaignsUsed,
   };
 
+  // Admins bypass all limit checks
+  if (user.role === "admin") {
+    return {
+      allowed: true,
+      details,
+    };
+  }
+
   // If creating a campaign (additionalEmailsCount is 0), check campaign count limit
   if (additionalEmailsCount === 0 && campaignsUsed >= maxCampaigns) {
     return {
       allowed: false,
-      reason: `You have reached the maximum number of campaigns (${campaignsUsed}/${maxCampaigns}). Delete old campaigns or contact admin to increase your limit.`,
+      reason: `You have reached the maximum number of campaigns (${campaignsUsed}/${maxCampaigns}) allowed on your plan. Delete old campaigns, or upgrade your plan / contact your admin to increase your limits.`,
       details,
     };
   }
@@ -77,7 +88,7 @@ export async function checkUserQuotas(
     if (dailyUsed + additionalEmailsCount > emailsPerDay) {
       return {
         allowed: false,
-        reason: `Adding ${additionalEmailsCount} emails would exceed your daily sending quota of ${emailsPerDay} (Used today: ${dailyUsed}).`,
+        reason: `Adding ${additionalEmailsCount} emails would exceed your daily sending quota of ${emailsPerDay} (Used today: ${dailyUsed}). Upgrade your plan or contact your admin to increase your limits.`,
         details,
       };
     }
@@ -85,7 +96,7 @@ export async function checkUserQuotas(
     if (monthlyUsed + additionalEmailsCount > emailsPerMonth) {
       return {
         allowed: false,
-        reason: `Adding ${additionalEmailsCount} emails would exceed your monthly sending quota of ${emailsPerMonth} (Used this month: ${monthlyUsed}).`,
+        reason: `Adding ${additionalEmailsCount} emails would exceed your monthly sending quota of ${emailsPerMonth} (Used this month: ${monthlyUsed}). Upgrade your plan or contact your admin to increase your limits.`,
         details,
       };
     }
@@ -149,4 +160,113 @@ export async function resolveUserSelectedModel(user: IUser): Promise<string> {
     return currentModel;
   }
   return allowed[0];
+}
+
+/**
+ * Automatically checks if a user's plan has expired, and if so downgrades them immediately to "free".
+ */
+export async function enforcePlanExpiry(user: IUser): Promise<IUser> {
+  await dbConnect();
+  const User = (await import("@/models/User")).default;
+  let didUpdate = false;
+
+  // ── Auto-Heal: Upgraded Plan Recovery ──
+  // If the user's plan is still missing, uninitialized, or "free" in the database, but they have
+  // an active approved SubscriptionRequest from the last 30 days, auto-heal and sync the user's plan.
+  if (!user.plan || user.plan === "free") {
+    const SubscriptionRequest = (await import("@/models/SubscriptionRequest")).default;
+    const activeRequest = await SubscriptionRequest.findOne({
+      userId: user._id,
+      status: "approved",
+    }).sort({ reviewedAt: -1 });
+
+    if (activeRequest) {
+      const approvalDate = activeRequest.reviewedAt || activeRequest.updatedAt || activeRequest.createdAt;
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      const expiryDate = new Date(new Date(approvalDate).getTime() + thirtyDays);
+      if (expiryDate > new Date()) {
+        const { PLAN_CONFIGS } = await import("@/lib/quota-config");
+        const config = PLAN_CONFIGS[activeRequest.plan];
+        if (config) {
+          await User.findByIdAndUpdate(user._id, {
+            $set: {
+              plan: activeRequest.plan,
+              planExpiresAt: expiryDate,
+              "quotas.emailsPerDay": config.emailsPerDay,
+              "quotas.emailsPerMonth": config.emailsPerMonth,
+              "quotas.maxCampaigns": config.maxCampaigns,
+              "quotas.allowedModels": config.allowedModels,
+            },
+          });
+          didUpdate = true;
+          console.log(`[enforcePlanExpiry/auto-heal] Successfully synced and healed plan for ${user.email} to ${activeRequest.plan} using date ${approvalDate}`);
+        }
+      }
+    }
+  }
+
+  // ── Enforce Expiry ──
+  if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date()) {
+    const { PLAN_CONFIGS } = await import("@/lib/quota-config");
+    const freeConfig = PLAN_CONFIGS.free;
+    await User.findByIdAndUpdate(user._id, {
+      $set: {
+        plan: "free",
+        planExpiresAt: null,
+        "quotas.emailsPerDay": freeConfig.emailsPerDay,
+        "quotas.emailsPerMonth": freeConfig.emailsPerMonth,
+        "quotas.maxCampaigns": freeConfig.maxCampaigns,
+        "quotas.allowedModels": freeConfig.allowedModels,
+      },
+    });
+    didUpdate = true;
+    console.log(`[enforcePlanExpiry] Downgraded user ${user.email} to free plan (expired)`);
+  }
+
+  if (didUpdate) {
+    const freshUser = await User.findById(user._id);
+    if (freshUser) {
+      return freshUser;
+    }
+  }
+
+  return user;
+}
+
+/**
+ * Updates a user's plan and rescales their quotas in the database according to PLAN_CONFIGS.
+ */
+export async function updateUserPlanQuotas(userId: string | any, planName: "free" | "starter" | "pro" | "enterprise") {
+  const { PLAN_CONFIGS } = await import("@/lib/quota-config");
+  const config = PLAN_CONFIGS[planName];
+  if (!config) throw new Error(`Invalid plan: ${planName}`);
+
+  await dbConnect();
+  const User = (await import("@/models/User")).default;
+  const planExpiresAt = planName === "free" ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days expiry
+
+  const updated = await User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        plan: planName,
+        planExpiresAt,
+        "quotas.emailsPerDay": config.emailsPerDay,
+        "quotas.emailsPerMonth": config.emailsPerMonth,
+        "quotas.maxCampaigns": config.maxCampaigns,
+        "quotas.allowedModels": config.allowedModels,
+      },
+    },
+    { new: true }
+  );
+
+  if (!updated) {
+    console.error(`[updateUserPlanQuotas] User not found for ID: ${userId}`);
+    throw new Error(`User not found for plan upgrade (ID: ${userId})`);
+  }
+
+  console.log(
+    `[updateUserPlanQuotas] Updated user ${updated.email} to plan "${planName}" ` +
+    `(expires: ${planExpiresAt?.toISOString() ?? "never"}, quotas: ${config.emailsPerDay}/${config.emailsPerMonth}/${config.maxCampaigns})`
+  );
 }

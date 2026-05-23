@@ -19,6 +19,7 @@ import {
   Coins,
   Sliders,
   Zap,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +36,7 @@ interface AdminShellProps {
 const NAV_ITEMS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
   { href: "/admin/api-keys", label: "API Keys", icon: Key },
   { href: "/admin/campaigns", label: "Campaigns", icon: Mail },
   { href: "/admin/blacklist", label: "Blacklist", icon: Ban },

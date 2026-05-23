@@ -16,6 +16,7 @@ import {
   ChevronRight,
   User as UserIcon,
   Shield,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ interface DashboardShellProps {
     email: string;
     image: string;
     role?: string;
+    plan?: string;
   };
   isImpersonating?: boolean;
   children: React.ReactNode;
@@ -35,6 +37,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/campaign/new", label: "New Campaign", icon: PlusCircle },
   { href: "/dashboard/history", label: "History", icon: History },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
+  { href: "/dashboard/billing", label: "Billing & Usage", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
@@ -141,26 +144,62 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
 
         {/* User section */}
         <div className="border-t border-border-default p-3 space-y-1">
-          <div className="flex items-center gap-2.5 px-2 py-2 overflow-hidden">
+          <Link
+            href="/dashboard/billing"
+            className="flex items-center gap-2.5 px-2 py-2 overflow-hidden hover:bg-bg-elevated rounded-xl transition-all duration-150 cursor-pointer text-left w-full group"
+          >
             {user.image ? (
               <img
                 src={user.image}
                 alt={user.name}
-                className="w-8 h-8 rounded-lg flex-shrink-0 object-cover"
+                className="w-8 h-8 rounded-lg flex-shrink-0 object-cover border border-border-default group-hover:border-accent-primary transition-colors"
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-bg-elevated flex items-center justify-center flex-shrink-0">
-                <UserIcon className="w-4 h-4 text-text-muted" />
+              <div className="w-8 h-8 rounded-lg bg-bg-elevated flex items-center justify-center flex-shrink-0 group-hover:bg-accent-dim transition-colors">
+                <UserIcon className="w-4 h-4 text-text-muted group-hover:text-accent-primary" />
               </div>
             )}
             {!collapsed && (
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{user.name}</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <p className="text-sm font-medium truncate text-text-primary group-hover:text-accent-primary transition-colors">
+                    {user.name}
+                  </p>
+                  {(() => {
+                    const p = user.plan || "free";
+                    if (p === "starter") {
+                      return (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20 flex-shrink-0">
+                          Starter
+                        </span>
+                      );
+                    }
+                    if (p === "pro") {
+                      return (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-accent-dim text-accent-primary border border-accent-primary/20 flex-shrink-0">
+                          Pro
+                        </span>
+                      );
+                    }
+                    if (p === "enterprise") {
+                      return (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 flex-shrink-0 animate-pulse">
+                          Ent.
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-bg-elevated text-text-muted border border-border-default flex-shrink-0">
+                        Free
+                      </span>
+                    );
+                  })()}
+                </div>
                 <p className="text-xs text-text-faint truncate">{user.email}</p>
               </div>
             )}
-          </div>
+          </Link>
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
             className={cn(

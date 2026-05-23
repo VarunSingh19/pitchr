@@ -20,6 +20,7 @@ export default async function DashboardLayout({
         email: session.user.email || "",
         image: session.user.image || "",
         role: (session.user as unknown as Record<string, unknown>).role as string || "user",
+        plan: (session.user as unknown as Record<string, unknown>).plan as string || "free",
       }}
       isImpersonating={!!(session as any).isImpersonating}
     >

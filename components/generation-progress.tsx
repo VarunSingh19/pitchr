@@ -105,6 +105,7 @@ export function GenerationProgress({
                     <span>
                       Generating emails ({completedCount} of {total} done)
                       {pending > 0 && <span className="text-text-muted font-normal ml-1">· {pending} in queue</span>}
+                      {autoSend && <span className="text-amber-500 font-normal ml-1">· Auto-send enabled</span>}
                     </span>
                   </span>
                 )}
@@ -112,6 +113,7 @@ export function GenerationProgress({
                   <span>
                     Generation complete — {generated} ready
                     {failed > 0 && `, ${failed} failed`}
+                    {autoSend && <span className="text-amber-500 ml-1">· Sending automatically...</span>}
                   </span>
                 )}
               </div>

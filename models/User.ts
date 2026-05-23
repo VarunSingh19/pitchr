@@ -39,6 +39,8 @@ export interface IUser extends Document {
   emailVerified: Date | null;
   image: string;
   role: "user" | "admin";
+  plan: "free" | "starter" | "pro" | "enterprise";
+  planExpiresAt: Date | null;
   /** @deprecated — System-managed keys via SystemApiKey model. Stop reading/writing. Will be removed after migration. */
   apiKeys: IApiKey[];
   selectedModel: string;
@@ -123,6 +125,8 @@ const UserSchema = new Schema<IUser>(
     emailVerified: { type: Date, default: null },
     image: { type: String, default: "" },
     role: { type: String, enum: ["user", "admin"], default: "user" },
+    plan: { type: String, enum: ["free", "starter", "pro", "enterprise"], default: "free" },
+    planExpiresAt: { type: Date, default: null },
     /** @deprecated — Kept for backward compat. Do NOT read/write. Run migrate-remove-user-api-keys.js after confirming new system works. */
     apiKeys: { type: [ApiKeySchema], default: [] },
     selectedModel: { type: String, default: DEFAULT_MODEL.id },
@@ -132,16 +136,16 @@ const UserSchema = new Schema<IUser>(
     lastLoginAt: { type: Date },
     quotas: {
       type: {
-        emailsPerDay: { type: Number, default: 100 },
-        emailsPerMonth: { type: Number, default: 2000 },
-        maxCampaigns: { type: Number, default: 10 },
-        allowedModels: { type: [String], default: [] },
+        emailsPerDay: { type: Number, default: 10 },
+        emailsPerMonth: { type: Number, default: 100 },
+        maxCampaigns: { type: Number, default: 3 },
+        allowedModels: { type: [String], default: ["gemini-2.5-flash"] },
       },
       default: () => ({
-        emailsPerDay: 100,
-        emailsPerMonth: 2000,
-        maxCampaigns: 10,
-        allowedModels: [],
+        emailsPerDay: 10,
+        emailsPerMonth: 100,
+        maxCampaigns: 3,
+        allowedModels: ["gemini-2.5-flash"],
       }),
     },
   },
@@ -167,6 +171,12 @@ UserSchema.pre("save", async function () {
     this.gmailConfig.appPassword = encrypt(this.gmailConfig.appPassword);
   }
 });
+
+// Force re-compilation if the cached model in mongoose.models is missing the "plan" schema path
+if (models.User && !models.User.schema.paths.plan) {
+  console.log("[Mongoose] Re-compiling User model to apply plan schema fields.");
+  delete models.User;
+}
 
 const User = models.User || model<IUser>("User", UserSchema);
 
