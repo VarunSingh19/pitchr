@@ -16,6 +16,7 @@ import {
   Activity,
   Layers,
   HelpCircle,
+  Loader2,
 } from "lucide-react";
 import { PLAN_CONFIGS, PlanDetails } from "@/lib/quota-config";
 
@@ -185,23 +186,27 @@ export default function BillingPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-40 space-y-4">
-        <Activity className="w-10 h-10 animate-spin text-accent-primary" />
-        <p className="text-sm font-semibold text-text-muted">Loading your billing details...</p>
+        <div className="w-12 h-12 border-2 border-[#ea580c] flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-[#ea580c]" />
+        </div>
+        <p className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
+          Loading billing profile...
+        </p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="text-center py-20 bg-bg-surface rounded-3xl border border-border-default space-y-4 max-w-xl mx-auto">
-        <AlertCircle className="w-12 h-12 text-error mx-auto animate-pulse" />
-        <h3 className="text-lg font-bold">Failed to Load Billing</h3>
-        <p className="text-text-secondary text-sm">{error || "No data available."}</p>
+      <div className="border-2 border-red-500 bg-red-500/5 p-8 text-center max-w-xl mx-auto my-20 font-mono">
+        <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+        <h3 className="text-sm font-bold text-red-400 uppercase tracking-widest">Billing Sync Failed</h3>
+        <p className="text-xs text-muted-foreground mt-2">{error || "No data available."}</p>
         <button
           onClick={() => fetchBilling()}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary-hover text-white rounded-xl text-sm font-semibold transition-all"
+          className="mt-5 px-6 py-2.5 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] transition-colors"
         >
-          Retry
+          Retry Connection
         </button>
       </div>
     );
@@ -211,63 +216,70 @@ export default function BillingPage() {
   const activePlanPrice = PLAN_CONFIGS[data.plan]?.price || 0;
 
   return (
-    <div className="space-y-8 animate-fade-in text-text-primary">
+    <div className="space-y-8 animate-fade-in font-mono text-xs text-foreground">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight mb-1">Billing & Usage</h1>
-        <p className="text-sm text-text-secondary">
-          Track campaign limits, monitor daily sending volume, and manage your subscription.
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-2.5 h-2.5 bg-[#ea580c] animate-blink" />
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+            // TELEMETRY &amp; LIMITS
+          </span>
+        </div>
+        <h1 className="font-pixel text-3xl sm:text-4xl tracking-tight text-foreground">
+          BILLING &amp; QUOTAS
+        </h1>
+        <p className="text-xs text-muted-foreground mt-1 tracking-wide">
+          Manage system plans, examine active pipelines and sending limits
         </p>
       </div>
 
       {/* Plan Summary & Progress Cards */}
       <div className="grid lg:grid-cols-12 gap-6">
         {/* Active plan details */}
-        <div className="lg:col-span-4 rounded-3xl border border-border-default bg-bg-surface p-6 shadow-sm flex flex-col justify-between relative overflow-hidden group">
-          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 rounded-full bg-accent-primary/5 blur-2xl pointer-events-none group-hover:bg-accent-primary/10 transition-all"></div>
-          <div className="relative z-10 space-y-4">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-accent-dim text-accent-primary border border-accent-primary/15 uppercase tracking-wider">
+        <div className="lg:col-span-4 border-2 border-border bg-card p-6 flex flex-col justify-between relative overflow-hidden rounded-none">
+          <div className="space-y-4">
+            <span className="inline-flex items-center px-3 py-1 border border-[#ea580c]/30 bg-[#ea580c]/5 text-[9px] font-bold text-[#ea580c] uppercase tracking-widest rounded-none">
               {activePlanName}
             </span>
             <div>
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Current Monthly Price</p>
-              <p className="text-4xl font-extrabold tracking-tight mt-1 text-text-primary">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Active Plan Rate</p>
+              <p className="font-pixel text-3xl tracking-tight mt-1.5 text-foreground">
                 ₹{activePlanPrice.toLocaleString()}
-                <span className="text-sm font-semibold text-text-muted">/mo</span>
+                <span className="text-xs font-bold font-mono text-muted-foreground">/mo</span>
               </p>
             </div>
             {data.planExpiresAt && (
-              <div className="flex items-center gap-2 text-xs text-text-muted bg-bg-base/45 p-3 rounded-2xl border border-border-default/50">
-                <Clock className="w-4 h-4 text-accent-primary flex-shrink-0" />
+              <div className="flex items-center gap-2.5 text-[10px] text-muted-foreground border border-border bg-foreground/[0.01] p-3 rounded-none">
+                <Clock className="w-4 h-4 text-[#ea580c] flex-shrink-0" />
                 <span>
-                  Renews on: <strong>{new Date(data.planExpiresAt).toLocaleDateString()}</strong>
+                  RENEWAL DATE: <strong>{new Date(data.planExpiresAt).toLocaleDateString().toUpperCase()}</strong>
                 </span>
               </div>
             )}
           </div>
-          <div className="mt-8 pt-4 border-t border-border-default/50 text-xs text-text-muted">
-            Includes custom prompt configurations & load-balanced AI API integrations.
+          <div className="mt-8 pt-4 border-t border-border/60 text-[10px] text-muted-foreground">
+            Includes custom prompt configurations &amp; load-balanced AI API integrations.
           </div>
         </div>
 
         {/* Quotas limits meters */}
-        <div className="lg:col-span-8 rounded-3xl border border-border-default bg-bg-surface p-6 shadow-sm space-y-5">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
-            <Layers className="w-4 h-4 text-accent-primary" /> Active Plan Quota Limits
+        <div className="lg:col-span-8 border-2 border-border bg-card p-6 space-y-6 rounded-none">
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Layers className="w-4 h-4 text-[#ea580c]" /> ACTIVE PIPELINE ALLOCATION LIMITS
           </h3>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             {/* Campaigns quota */}
             <div>
-              <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
-                <span className="text-text-secondary">Campaigns Launched</span>
-                <span className="text-text-primary">
+              <div className="flex items-center justify-between text-[10px] font-bold mb-2 uppercase tracking-wide">
+                <span className="text-muted-foreground">Campaigns Launched</span>
+                <span className="text-foreground">
                   {data.usage.campaignsUsed} / {data.quotas.maxCampaigns >= 9999 ? "Unlimited" : data.quotas.maxCampaigns}
                 </span>
               </div>
-              <div className="h-2 w-full bg-bg-elevated rounded-full overflow-hidden">
+              <div className="h-2 w-full bg-muted/40 border border-border overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                  className="h-full bg-indigo-500 transition-all duration-500"
                   style={{
                     width: `${Math.min(
                       (data.usage.campaignsUsed / (data.quotas.maxCampaigns || 1)) * 100,
@@ -280,15 +292,15 @@ export default function BillingPage() {
 
             {/* Daily emails quota */}
             <div>
-              <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
-                <span className="text-text-secondary">Emails Sent Today</span>
-                <span className="text-text-primary">
+              <div className="flex items-center justify-between text-[10px] font-bold mb-2 uppercase tracking-wide">
+                <span className="text-muted-foreground">Emails Sent Today</span>
+                <span className="text-foreground">
                   {data.usage.dailyUsed} / {data.quotas.emailsPerDay}
                 </span>
               </div>
-              <div className="h-2 w-full bg-bg-elevated rounded-full overflow-hidden">
+              <div className="h-2 w-full bg-muted/40 border border-border overflow-hidden">
                 <div
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                  className="h-full bg-emerald-500 transition-all duration-500"
                   style={{
                     width: `${Math.min(
                       (data.usage.dailyUsed / (data.quotas.emailsPerDay || 1)) * 100,
@@ -301,15 +313,15 @@ export default function BillingPage() {
 
             {/* Monthly emails quota */}
             <div>
-              <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
-                <span className="text-text-secondary">Emails Sent This Month</span>
-                <span className="text-text-primary">
+              <div className="flex items-center justify-between text-[10px] font-bold mb-2 uppercase tracking-wide">
+                <span className="text-muted-foreground">Emails Sent This Month</span>
+                <span className="text-foreground">
                   {data.usage.monthlyUsed} / {data.quotas.emailsPerMonth}
                 </span>
               </div>
-              <div className="h-2 w-full bg-bg-elevated rounded-full overflow-hidden">
+              <div className="h-2 w-full bg-muted/40 border border-border overflow-hidden">
                 <div
-                  className="h-full bg-cyan-500 rounded-full transition-all duration-500"
+                  className="h-full bg-cyan-500 transition-all duration-500"
                   style={{
                     width: `${Math.min(
                       (data.usage.monthlyUsed / (data.quotas.emailsPerMonth || 1)) * 100,
@@ -325,49 +337,55 @@ export default function BillingPage() {
 
       {/* Subscription Pricing Grid */}
       <div className="space-y-4">
-        <div className="text-center sm:text-left">
-          <h2 className="text-lg font-bold">Upgrade Subscription Plan</h2>
-          <p className="text-xs text-text-muted">Choose a premium outbound tier to unlock advanced AI models and lift quotas.</p>
+        <div className="flex items-center gap-4 mb-2">
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+            // SECTION: Upgrades
+          </span>
+          <div className="flex-1 border-t border-border" />
+          <span className="inline-block h-2 w-2 bg-[#ea580c] animate-blink" />
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
+            01
+          </span>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
           {/* Starter Plan card */}
           <div
-            className={`rounded-3xl border p-6 flex flex-col justify-between bg-bg-surface shadow-sm transition-all duration-300 relative ${
+            className={`border-2 p-6 flex flex-col justify-between bg-card transition-all duration-200 relative rounded-none ${
               data.plan === "starter"
-                ? "border-amber-500 shadow-md shadow-amber-500/5 ring-1 ring-amber-500"
-                : "border-border-default hover:border-border-subtle"
+                ? "border-[#ea580c] bg-[#ea580c]/5"
+                : "border-border hover:border-foreground/20"
             }`}
           >
             {data.plan === "starter" && (
-              <span className="absolute top-4 right-4 text-[9px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+              <span className="absolute top-4 right-4 text-[8px] font-bold text-amber-500 border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 uppercase tracking-widest rounded-none">
                 ACTIVE
               </span>
             )}
-            <div className="space-y-4">
+            <div className="space-y-4 font-mono">
               <div>
-                <h3 className="font-bold text-base text-text-primary">Starter Plan</h3>
-                <p className="text-[10px] text-text-muted mt-0.5">Perfect for quick validation outreach</p>
+                <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Starter Plan</h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Quick validation outreach</p>
               </div>
-              <p className="text-3xl font-extrabold text-text-primary">
+              <p className="font-pixel text-2xl text-foreground">
                 ₹199
-                <span className="text-xs font-semibold text-text-muted">/mo</span>
+                <span className="text-xs font-mono text-muted-foreground">/mo</span>
               </p>
-              <ul className="space-y-2 pt-2 border-t border-border-default/50 text-xs text-text-muted">
+              <ul className="space-y-2 pt-4 border-t border-border/60 text-xs text-muted-foreground">
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>Max 15 active campaigns</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>100 personalized emails/day</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>2,000 monthly sending limit</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>Access Google Gemini models</span>
                 </li>
               </ul>
@@ -375,10 +393,10 @@ export default function BillingPage() {
             <button
               onClick={() => handleOpenUpgrade("starter")}
               disabled={data.plan === "starter"}
-              className={`w-full mt-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+              className={`w-full mt-6 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-none cursor-pointer ${
                 data.plan === "starter"
-                  ? "bg-bg-elevated text-text-muted border border-border-default cursor-default"
-                  : "bg-accent-primary hover:bg-accent-primary-hover text-white active:scale-[0.98]"
+                  ? "bg-foreground/5 text-muted-foreground border border-border cursor-default"
+                  : "bg-foreground text-background hover:bg-[#ea580c] hover:text-background"
               }`}
             >
               {data.plan === "starter" ? "Active Plan" : "Upgrade Plan"}
@@ -387,56 +405,55 @@ export default function BillingPage() {
 
           {/* Pro Plan card */}
           <div
-            className={`rounded-3xl border p-6 flex flex-col justify-between bg-bg-surface shadow-sm transition-all duration-300 relative overflow-hidden group ${
+            className={`border-2 p-6 flex flex-col justify-between bg-card transition-all duration-200 relative rounded-none ${
               data.plan === "pro"
-                ? "border-accent-primary shadow-lg shadow-accent-primary/5 ring-1 ring-accent-primary"
-                : "border-border-default hover:border-border-subtle"
+                ? "border-[#ea580c] bg-[#ea580c]/5"
+                : "border-border hover:border-foreground/20"
             }`}
           >
-            <div className="absolute top-0 right-0 -mt-6 -mr-6 w-16 h-16 rounded-full bg-accent-primary/5 blur-xl group-hover:bg-accent-primary/10 transition-all pointer-events-none"></div>
             {data.plan === "pro" && (
-              <span className="absolute top-4 right-4 text-[9px] font-bold text-accent-primary bg-accent-dim px-2 py-0.5 rounded-full border border-accent-primary/20">
+              <span className="absolute top-4 right-4 text-[8px] font-bold text-[#ea580c] border border-[#ea580c]/20 bg-[#ea580c]/5 px-2 py-0.5 uppercase tracking-widest rounded-none">
                 ACTIVE
               </span>
             )}
-            <div className="space-y-4">
+            <div className="space-y-4 font-mono">
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-base text-text-primary">Pro Outbound</h3>
-                  <Sparkles className="w-3.5 h-3.5 text-accent-primary animate-pulse" />
+                  <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Pro Outbound</h3>
+                  <Sparkles className="w-3.5 h-3.5 text-[#ea580c] animate-pulse" />
                 </div>
-                <p className="text-[10px] text-text-muted mt-0.5">High-volume personalized outreach</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">High-volume personalized outreach</p>
               </div>
-              <p className="text-3xl font-extrabold text-text-primary">
+              <p className="font-pixel text-2xl text-foreground">
                 ₹599
-                <span className="text-xs font-semibold text-text-muted">/mo</span>
+                <span className="text-xs font-mono text-muted-foreground">/mo</span>
               </p>
-              <ul className="space-y-2 pt-2 border-t border-border-default/50 text-xs text-text-muted">
+              <ul className="space-y-2 pt-4 border-t border-border/60 text-xs text-muted-foreground">
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>Max 50 active campaigns</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>500 personalized emails/day</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>10,000 monthly sending limit</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
-                  <span>Access Google Gemini + Llama models</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
+                  <span>Access Gemini + Llama models</span>
                 </li>
               </ul>
             </div>
             <button
               onClick={() => handleOpenUpgrade("pro")}
               disabled={data.plan === "pro"}
-              className={`w-full mt-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+              className={`w-full mt-6 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-none cursor-pointer ${
                 data.plan === "pro"
-                  ? "bg-bg-elevated text-text-muted border border-border-default cursor-default"
-                  : "bg-accent-primary hover:bg-accent-primary-hover text-white active:scale-[0.98]"
+                  ? "bg-foreground/5 text-muted-foreground border border-border cursor-default"
+                  : "bg-foreground text-background hover:bg-[#ea580c] hover:text-background"
               }`}
             >
               {data.plan === "pro" ? "Active Plan" : "Upgrade Plan"}
@@ -445,41 +462,41 @@ export default function BillingPage() {
 
           {/* Enterprise Plan card */}
           <div
-            className={`rounded-3xl border p-6 flex flex-col justify-between bg-bg-surface shadow-sm transition-all duration-300 relative ${
+            className={`border-2 p-6 flex flex-col justify-between bg-card transition-all duration-200 relative rounded-none ${
               data.plan === "enterprise"
-                ? "border-purple-500 shadow-md shadow-purple-500/5 ring-1 ring-purple-500"
-                : "border-border-default hover:border-border-subtle"
+                ? "border-purple-500 bg-purple-500/5 ring-1 ring-purple-500"
+                : "border-border hover:border-foreground/20"
             }`}
           >
             {data.plan === "enterprise" && (
-              <span className="absolute top-4 right-4 text-[9px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
+              <span className="absolute top-4 right-4 text-[8px] font-bold text-purple-400 border border-purple-500/20 bg-purple-500/5 px-2 py-0.5 uppercase tracking-widest rounded-none">
                 ACTIVE
               </span>
             )}
-            <div className="space-y-4">
+            <div className="space-y-4 font-mono">
               <div>
-                <h3 className="font-bold text-base text-text-primary">Enterprise</h3>
-                <p className="text-[10px] text-text-muted mt-0.5">Uncapped scale for power agencies</p>
+                <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Enterprise</h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Uncapped scale for power agencies</p>
               </div>
-              <p className="text-3xl font-extrabold text-text-primary">
+              <p className="font-pixel text-2xl text-foreground">
                 ₹999
-                <span className="text-xs font-semibold text-text-muted">/mo</span>
+                <span className="text-xs font-mono text-muted-foreground">/mo</span>
               </p>
-              <ul className="space-y-2 pt-2 border-t border-border-default/50 text-xs text-text-muted">
+              <ul className="space-y-2 pt-4 border-t border-border/60 text-xs text-muted-foreground">
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>Unlimited campaigns total</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>2,000 personalized emails/day</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>50,000 monthly sending limit</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>Access all active AI models</span>
                 </li>
               </ul>
@@ -487,10 +504,10 @@ export default function BillingPage() {
             <button
               onClick={() => handleOpenUpgrade("enterprise")}
               disabled={data.plan === "enterprise"}
-              className={`w-full mt-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+              className={`w-full mt-6 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-none cursor-pointer ${
                 data.plan === "enterprise"
-                  ? "bg-bg-elevated text-text-muted border border-border-default cursor-default"
-                  : "bg-accent-primary hover:bg-accent-primary-hover text-white active:scale-[0.98]"
+                  ? "bg-foreground/5 text-muted-foreground border border-border cursor-default"
+                  : "bg-foreground text-background hover:bg-[#ea580c] hover:text-background"
               }`}
             >
               {data.plan === "enterprise" ? "Active Plan" : "Upgrade Plan"}
@@ -500,60 +517,70 @@ export default function BillingPage() {
       </div>
 
       {/* Subscription request history */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Payment Proof Verification History</h3>
-        <div className="overflow-x-auto rounded-3xl border border-border-default bg-bg-surface shadow-sm">
+      <div className="space-y-4">
+        <div className="flex items-center gap-4 mb-2">
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+            // SECTION: Verification logs
+          </span>
+          <div className="flex-1 border-t border-border" />
+          <span className="inline-block h-2 w-2 bg-[#ea580c] animate-blink" />
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
+            02
+          </span>
+        </div>
+
+        <div className="overflow-x-auto border-2 border-border bg-card rounded-none">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-border-default text-xs font-semibold text-text-muted bg-bg-base/40">
-                <th className="p-4 pl-6">Submitted Date</th>
+              <tr className="border-b-2 border-border text-[9px] font-bold text-muted-foreground uppercase tracking-[0.15em] bg-foreground/[0.02]">
+                <th className="p-4 pl-6">Submitted</th>
                 <th className="p-4">Upgrade Tier</th>
                 <th className="p-4">Amount</th>
-                <th className="p-4">Transaction ID</th>
-                <th className="p-4">Receipt File</th>
+                <th className="p-4">Transaction Reference</th>
+                <th className="p-4">Receipt Link</th>
                 <th className="p-4 pr-6 text-right">Verification Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-default text-xs">
+            <tbody className="divide-y divide-border text-xs">
               {data.requests.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-text-faint">
-                    No upgrade requests submitted yet.
+                  <td colSpan={6} className="p-6 text-center text-muted-foreground uppercase tracking-widest text-[10px]">
+                    No historical payment proof records located.
                   </td>
                 </tr>
               ) : (
                 data.requests.map((req) => {
                   const label = PLAN_CONFIGS[req.plan]?.name || req.plan;
                   return (
-                    <tr key={req._id} className="hover:bg-bg-base/20 transition-colors">
-                      <td className="p-4 pl-6 text-text-muted">
-                        {new Date(req.createdAt).toLocaleDateString()}
+                    <tr key={req._id} className="hover:bg-foreground/[0.01] transition-colors">
+                      <td className="p-4 pl-6 text-muted-foreground font-mono">
+                        {new Date(req.createdAt).toLocaleDateString().toUpperCase()}
                       </td>
-                      <td className="p-4 font-bold text-text-primary">{label}</td>
-                      <td className="p-4 font-mono font-semibold">₹{req.amount}</td>
-                      <td className="p-4 font-mono font-medium text-text-secondary select-all">{req.transactionId}</td>
-                      <td className="p-4 text-text-muted truncate max-w-[150px]" title={req.proofFileName}>
+                      <td className="p-4 font-bold text-foreground uppercase">{label}</td>
+                      <td className="p-4 font-bold text-foreground">₹{req.amount}</td>
+                      <td className="p-4 font-mono text-muted-foreground select-all">{req.transactionId}</td>
+                      <td className="p-4 text-muted-foreground truncate max-w-[150px]" title={req.proofFileName}>
                         {req.proofFileName}
                       </td>
                       <td className="p-4 pr-6 text-right">
                         <div className="inline-flex flex-col items-end gap-1">
                           {req.status === "pending" && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 inline-flex items-center gap-1">
+                            <span className="px-2.5 py-0.5 border border-amber-500/30 bg-amber-500/5 text-[9px] font-bold text-amber-500 uppercase tracking-wider inline-flex items-center gap-1.5 rounded-none">
                               <Clock className="w-3 h-3 animate-spin" /> Pending Review
                             </span>
                           )}
                           {req.status === "approved" && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 inline-flex items-center gap-1">
+                            <span className="px-2.5 py-0.5 border border-emerald-400/30 bg-emerald-400/5 text-[9px] font-bold text-emerald-400 uppercase tracking-wider inline-flex items-center gap-1.5 rounded-none">
                               <CheckCircle2 className="w-3 h-3" /> Approved
                             </span>
                           )}
                           {req.status === "rejected" && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20 inline-flex items-center gap-1">
+                            <span className="px-2.5 py-0.5 border border-red-500/30 bg-red-500/5 text-[9px] font-bold text-red-400 uppercase tracking-wider inline-flex items-center gap-1.5 rounded-none">
                               <XCircle className="w-3 h-3" /> Rejected
                             </span>
                           )}
                           {req.status === "rejected" && req.adminNotes && (
-                            <p className="text-[10px] text-red-400 mt-1 max-w-[200px] text-right font-medium leading-normal bg-red-500/5 px-2.5 py-1.5 rounded-xl border border-red-500/10 shadow-sm animate-fade-in break-words">
+                            <p className="text-[9px] text-red-400 mt-1 max-w-[200px] text-right font-bold leading-normal border border-red-500/20 bg-red-500/5 px-2 py-1 rounded-none uppercase tracking-wide">
                               Reason: {req.adminNotes}
                             </p>
                           )}
@@ -570,29 +597,29 @@ export default function BillingPage() {
 
       {/* Manual Payment Portal Modal */}
       {selectedPlan && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg-base/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-xl bg-bg-surface border border-border-default rounded-3xl p-6 shadow-xl relative animate-scale-in max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fade-in font-mono">
+          <div className="w-full max-w-xl bg-card border-2 border-border p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto rounded-none">
             {/* Close Button */}
             <button
               onClick={() => setSelectedPlan(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-text-faint hover:text-text-muted hover:bg-bg-elevated transition-colors"
+              className="absolute top-4 right-4 p-1.5 text-muted-foreground hover:text-foreground hover:bg-foreground/5 border border-border cursor-pointer transition-colors"
             >
-              <XCircle className="w-5 h-5" />
+              <XCircle className="w-4 h-4" />
             </button>
 
             {submitSuccess ? (
               <div className="py-10 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto text-emerald-500 border border-emerald-500/20">
-                  <CheckCircle2 className="w-8 h-8 animate-bounce" />
+                <div className="w-12 h-12 border-2 border-emerald-400 bg-emerald-400/5 flex items-center justify-center mx-auto text-emerald-400 rounded-none">
+                  <CheckCircle2 className="w-6 h-6 animate-bounce" />
                 </div>
-                <h3 className="text-lg font-bold">Proof Submitted Successfully!</h3>
-                <p className="text-xs text-text-secondary max-w-sm mx-auto">
-                  Our administrators will verify the transaction reference <strong>{transactionId}</strong> and upgrade your plan limits shortly.
+                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Proof Submitted!</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                  Verification agent will verify reference <strong>{transactionId}</strong> and update quotas shortly.
                 </p>
                 <div className="pt-4">
                   <button
                     onClick={() => setSelectedPlan(null)}
-                    className="px-5 py-2.5 bg-bg-elevated hover:bg-bg-base border border-border-default rounded-xl text-xs font-semibold transition-colors"
+                    className="px-5 py-3 border-2 border-border text-xs font-bold uppercase tracking-widest hover:border-foreground/20 bg-card cursor-pointer rounded-none"
                   >
                     Close Dialog
                   </button>
@@ -601,41 +628,41 @@ export default function BillingPage() {
             ) : (
               <form onSubmit={handleSubmitProof} className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-bold">Upgrade to {PLAN_CONFIGS[selectedPlan].name}</h3>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    Pay ₹{PLAN_CONFIGS[selectedPlan].price} and submit the receipt reference to upgrade.
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Upgrade to {PLAN_CONFIGS[selectedPlan].name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pay ₹{PLAN_CONFIGS[selectedPlan].price} and submit details below.
                   </p>
                 </div>
 
                 {/* Steps Section */}
-                <div className="space-y-4 bg-bg-base/45 p-4 rounded-2xl border border-border-default/50">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-accent-primary">Checkout Instructions</h4>
+                <div className="space-y-4 bg-foreground/[0.01] p-4 border-2 border-border rounded-none">
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ea580c]">Checkout Accounts</h4>
 
                   {fetchingMethods ? (
-                    <div className="flex items-center gap-2 text-xs text-text-muted py-2">
-                      <Activity className="w-4 h-4 animate-spin text-accent-primary" />
-                      Retrieving payment accounts...
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2 font-bold uppercase tracking-wider">
+                      <Activity className="w-4 h-4 animate-spin text-[#ea580c]" />
+                      Loading payment channels...
                     </div>
                   ) : paymentMethods.length === 0 ? (
-                    <div className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center gap-2">
+                    <div className="text-xs text-amber-500 bg-amber-500/5 border border-amber-500/20 p-3 rounded-none flex items-center gap-2 font-bold uppercase tracking-wider">
                       <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      <span>No active payment routes configured. Please contact the administrator directly.</span>
+                      <span>No active billing routes configured by admin.</span>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {/* Render UPI ID payment lines */}
                       {paymentMethods.filter((m) => m.type === "upi").map((method) => (
-                        <div key={method._id} className="flex items-center justify-between gap-3 text-xs bg-bg-surface p-3 rounded-xl border border-border-default/60 shadow-sm">
-                          <span className="font-semibold text-text-secondary">{method.label}:</span>
+                        <div key={method._id} className="flex items-center justify-between gap-3 text-xs bg-card p-3 border border-border shadow-sm rounded-none">
+                          <span className="font-bold text-muted-foreground uppercase tracking-wider">{method.label}:</span>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-text-primary bg-bg-elevated px-2 py-1 rounded border border-border-default select-all font-semibold">
+                            <span className="font-mono text-foreground bg-foreground/[0.02] px-2.5 py-1 border border-border select-all font-bold">
                               {method.value}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleCopyUpi(method.value)}
-                              className="p-1 rounded bg-bg-elevated hover:bg-accent-dim text-text-faint hover:text-accent-primary border border-border-default transition-all"
-                              title="Copy UPI ID"
+                              className="p-1.5 border border-border hover:border-[#ea580c] hover:text-[#ea580c] transition-all bg-card cursor-pointer"
+                              title="Copy ID"
                             >
                               {copiedUpi === method.value ? (
                                 <Check className="w-3.5 h-3.5 text-emerald-500" />
@@ -653,8 +680,8 @@ export default function BillingPage() {
                         const qrUrl = `/api/payment-qr/${filename}`;
 
                         return (
-                          <div key={method._id} className="flex flex-col sm:flex-row items-center gap-4 bg-bg-surface p-4 rounded-xl border border-border-default/60 shadow-sm">
-                            <div className="w-32 h-32 rounded-lg border border-border-default bg-bg-base overflow-hidden flex items-center justify-center p-1.5 flex-shrink-0 relative group">
+                          <div key={method._id} className="flex flex-col sm:flex-row items-center gap-4 bg-card p-4 border border-border shadow-sm rounded-none">
+                            <div className="w-32 h-32 border border-border bg-background overflow-hidden flex items-center justify-center p-1.5 flex-shrink-0 relative">
                               <img
                                 src={qrUrl}
                                 alt={method.label}
@@ -662,9 +689,9 @@ export default function BillingPage() {
                               />
                             </div>
                             <div className="space-y-1 text-center sm:text-left">
-                              <h5 className="font-bold text-xs text-text-primary">{method.label}</h5>
-                              <p className="text-[10px] text-text-muted leading-relaxed">
-                                Scan this QR code inside GPay, PhonePe, Paytm, or any UPI banking app to make the payment of <strong>₹{PLAN_CONFIGS[selectedPlan!].price}</strong>.
+                              <h5 className="font-bold text-xs text-foreground uppercase tracking-wider">{method.label}</h5>
+                              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                Scan this QR inside Google Pay, PhonePe, Paytm, or BHIM app to make the transfer of <strong>₹{PLAN_CONFIGS[selectedPlan!].price}</strong>.
                               </p>
                             </div>
                           </div>
@@ -678,26 +705,26 @@ export default function BillingPage() {
                 <div className="space-y-4">
                   {/* Transaction reference */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-text-secondary">Transaction reference / UPI ID</label>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Transaction reference / UPI Ref ID</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. 618954728913 or UPI reference number"
+                      placeholder="e.g. 618954728913"
                       value={transactionId}
                       onChange={(e) => setTransactionId(e.target.value)}
-                      className="w-full px-4 py-2.5 text-xs rounded-xl border border-border-default bg-bg-elevated text-text-primary placeholder:text-text-faint focus:border-accent-primary focus:ring-1 focus:ring-accent-primary outline-none transition-all font-mono font-medium"
+                      className="w-full px-4 py-3 border-2 border-border bg-foreground/[0.01] text-xs focus:border-[#ea580c] focus:outline-none transition-all font-mono rounded-none"
                     />
                   </div>
 
                   {/* Receipt screenshot upload */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-text-secondary">Upload Payment Receipt Screenshot</label>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Upload Payment Receipt Screenshot</label>
                     <div
                       onClick={() => !proofFile && document.getElementById("proof-file-input")?.click()}
-                      className={`rounded-2xl border-2 border-dashed p-5 text-center transition-all cursor-pointer flex flex-col items-center justify-center min-h-[120px] ${
+                      className={`border-2 border-dashed p-6 text-center transition-all cursor-pointer flex flex-col items-center justify-center min-h-[120px] rounded-none ${
                         proofFile
-                          ? "border-border-subtle bg-bg-surface cursor-default"
-                          : "border-border-default bg-bg-elevated hover:border-border-subtle"
+                          ? "border-border bg-foreground/[0.01] cursor-default"
+                          : "border-border bg-foreground/[0.01] hover:bg-foreground/[0.02]"
                       }`}
                     >
                       <input
@@ -710,12 +737,12 @@ export default function BillingPage() {
 
                       {proofFile ? (
                         <div className="space-y-2">
-                          <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto" />
                           <div>
-                            <p className="text-xs font-medium text-text-primary truncate max-w-[280px]">
+                            <p className="text-xs font-bold text-foreground truncate max-w-[280px]">
                               {proofFile.name}
                             </p>
-                            <p className="text-[10px] text-text-muted mt-0.5">
+                            <p className="text-[10px] text-muted-foreground mt-0.5 font-bold">
                               {(proofFile.size / 1024).toFixed(1)} KB — Ready
                             </p>
                           </div>
@@ -726,17 +753,17 @@ export default function BillingPage() {
                               setProofFile(null);
                               setProofBase64("");
                             }}
-                            className="text-[10px] font-bold text-text-faint hover:text-error transition-colors underline"
+                            className="text-[10px] font-bold text-[#ea580c] hover:underline cursor-pointer bg-transparent border-0"
                           >
                             Change File
                           </button>
                         </div>
                       ) : (
-                        <div className="space-y-2 text-text-muted">
-                          <Upload className="w-5 h-5 mx-auto text-text-faint" />
+                        <div className="space-y-2 text-muted-foreground">
+                          <Upload className="w-5 h-5 mx-auto text-muted-foreground" />
                           <div>
-                            <p className="text-xs font-medium">Click to upload screenshot</p>
-                            <p className="text-[10px] text-text-faint mt-0.5">PNG, JPG, WEBP, or PDF under 5MB</p>
+                            <p className="text-xs font-bold uppercase tracking-wider">Click to upload screenshot</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG, WEBP, or PDF under 5MB</p>
                           </div>
                         </div>
                       )}
@@ -745,7 +772,7 @@ export default function BillingPage() {
                 </div>
 
                 {uploadError && (
-                  <div className="text-xs text-error bg-error-dim border border-error/20 p-3 rounded-xl flex items-center gap-2">
+                  <div className="text-xs text-red-400 bg-red-500/5 border border-red-500/20 p-3 flex items-center gap-2 font-bold uppercase tracking-wider rounded-none">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
                     <span>{uploadError}</span>
                   </div>
@@ -756,19 +783,19 @@ export default function BillingPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedPlan(null)}
-                    className="flex-1 py-2.5 rounded-xl border border-border-default hover:bg-bg-elevated text-xs font-bold transition-all text-text-secondary"
+                    className="flex-1 py-3 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest transition-all text-muted-foreground bg-card cursor-pointer rounded-none"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting || !proofBase64 || !transactionId.trim() || fetchingMethods}
-                    className="flex-1 py-2.5 bg-accent-primary hover:bg-accent-primary-hover disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-accent-primary/10 flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                    className="flex-1 py-3 bg-foreground text-background hover:bg-[#ea580c] hover:text-background disabled:opacity-50 disabled:hover:bg-foreground disabled:hover:text-background text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer rounded-none"
                   >
                     {submitting ? (
                       <>
                         <Activity className="w-3.5 h-3.5 animate-spin" />
-                        Submitting Proof...
+                        Submitting...
                       </>
                     ) : (
                       <>

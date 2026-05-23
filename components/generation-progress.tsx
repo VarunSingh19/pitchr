@@ -12,10 +12,10 @@ interface GenerationProgressProps {
 }
 
 const STATUS_CONFIG = {
-  QUEUED: { icon: Clock, color: "text-text-faint", bg: "bg-bg-subtle", label: "Queued" },
-  GENERATING: { icon: Loader2, color: "text-accent-primary", bg: "bg-accent-dim", label: "Generating" },
-  GENERATED: { icon: CheckCircle2, color: "text-success", bg: "bg-success-dim", label: "Generated" },
-  FAILED: { icon: AlertCircle, color: "text-error", bg: "bg-error-dim", label: "Failed" },
+  QUEUED: { icon: Clock, color: "text-muted-foreground", bg: "bg-muted/30", label: "Queued" },
+  GENERATING: { icon: Loader2, color: "text-[#ea580c]", bg: "bg-[#ea580c]/5", label: "Generating" },
+  GENERATED: { icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-400/5", label: "Generated" },
+  FAILED: { icon: AlertCircle, color: "text-red-400", bg: "bg-red-400/5", label: "Failed" },
 } as const;
 
 export function GenerationProgress({
@@ -33,44 +33,42 @@ export function GenerationProgress({
   const allPending = isGenerating && total > 0 && completedCount === 0 && pending > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-mono text-xs text-foreground">
       {/* Generate Button (initial state) */}
       {total === 0 && !isGenerating && (
-        <div className="text-center py-16">
-          <div className="w-16 h-16 rounded-2xl bg-accent-dim flex items-center justify-center mx-auto mb-5">
-            <Sparkles className="w-8 h-8 text-accent-primary" />
+        <div className="text-center py-16 border-2 border-border bg-card rounded-none">
+          <div className="w-16 h-16 border-2 border-[#ea580c]/30 bg-[#ea580c]/5 flex items-center justify-center mx-auto mb-5 rounded-none">
+            <Sparkles className="w-8 h-8 text-[#ea580c]" />
           </div>
-          <h3 className="text-lg font-semibold mb-2">Ready to Generate</h3>
-          <p className="text-sm text-text-secondary max-w-md mx-auto mb-8">
-            AI will craft a personalized email for each company using your resume
-            and their job details. This takes a few seconds per email.
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-2">Ready to Personalize</h3>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto mb-8 leading-relaxed">
+            AI will parse company targets and write customized outbound emails using your resume.
           </p>
 
           {onAutoSendChange && (
-            <div className="max-w-md mx-auto mb-8 text-left bg-bg-surface border border-border-default rounded-xl p-4 transition-all duration-300">
+            <div className="max-w-md mx-auto mb-8 text-left border-2 border-border bg-foreground/[0.01] p-4 transition-all duration-200 rounded-none">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="font-medium text-text-primary flex items-center gap-2">
-                    ⚡ Auto Send <span className="text-xs bg-accent-dim text-accent-primary px-2 py-0.5 rounded-full font-semibold">NEW</span>
+                  <h4 className="font-bold text-foreground flex items-center gap-2 uppercase tracking-wide">
+                    ⚡ Auto Send <span className="text-[9px] border border-[#ea580c]/30 bg-[#ea580c]/5 text-[#ea580c] px-2 py-0.5 font-bold uppercase tracking-wider rounded-none">System</span>
                   </h4>
-                  <p className="text-xs text-text-secondary mt-1">
-                    Emails will be sent automatically once generated. You can close the browser — we'll email you when it's done.
+                  <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+                    Trigger sending automatically upon generation complete. You can close this viewport.
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer mt-1">
                   <input
                     type="checkbox"
-                    className="sr-only peer"
+                    className="w-5 h-5 border-2 border-border bg-card text-[#ea580c] focus:ring-0 focus:outline-none cursor-pointer"
                     checked={autoSend}
                     onChange={(e) => onAutoSendChange(e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
                 </label>
               </div>
               {autoSend && (
-                <div className="mt-3 text-xs text-amber-500 font-medium flex items-center gap-1.5">
+                <div className="mt-3 text-[10px] text-amber-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
                   <AlertCircle className="w-4 h-4" />
-                  Warning: Emails will be sent without manual review.
+                  No manual review step will be processed.
                 </div>
               )}
             </div>
@@ -78,10 +76,9 @@ export function GenerationProgress({
 
           <button
             onClick={onGenerate}
-            className={`px-8 py-3.5 rounded-2xl ${autoSend ? 'bg-amber-600 hover:bg-amber-700' : 'bg-accent-primary hover:bg-accent-primary-hover'} text-white font-semibold transition-all hover:shadow-xl hover:shadow-accent-primary/25 flex items-center gap-2 mx-auto`}
+            className={`px-8 py-3.5 ${autoSend ? 'bg-[#ea580c] hover:bg-[#ea580c]/80 text-background' : 'bg-foreground text-background hover:bg-[#ea580c] hover:text-background'} text-xs font-bold uppercase tracking-widest transition-all rounded-none cursor-pointer`}
           >
-            {autoSend ? <Send className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-            {autoSend ? "Generate & Auto Send" : "Generate All Emails"}
+            {autoSend ? "Generate & Auto Send" : "Generate All"}
           </button>
         </div>
       )}
@@ -90,22 +87,22 @@ export function GenerationProgress({
       {(total > 0 || isGenerating) && (
         <>
           {/* Progress bar + controls */}
-          <div className="rounded-2xl border border-border-default bg-bg-surface p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-medium">
+          <div className="border-2 border-border bg-card p-5 rounded-none">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-xs font-bold uppercase tracking-wider">
                 {allPending && (
                   <span className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-text-faint animate-pulse" />
-                    <span>Waiting in queue... <span className="text-text-muted font-normal">({pending} emails queued)</span></span>
+                    <Clock className="w-4 h-4 text-muted-foreground animate-pulse" />
+                    <span>Waiting in queue... <span className="text-muted-foreground font-normal">({pending} emails queued)</span></span>
                   </span>
                 )}
                 {isGenerating && !allPending && (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-accent-primary" />
+                    <Loader2 className="w-4 h-4 animate-spin text-[#ea580c]" />
                     <span>
-                      Generating emails ({completedCount} of {total} done)
-                      {pending > 0 && <span className="text-text-muted font-normal ml-1">· {pending} in queue</span>}
-                      {autoSend && <span className="text-amber-500 font-normal ml-1">· Auto-send enabled</span>}
+                      Generating ({completedCount} of {total} done)
+                      {pending > 0 && <span className="text-muted-foreground font-normal ml-1.5">· {pending} pending</span>}
+                      {autoSend && <span className="text-amber-500 font-bold ml-1.5">· Auto-send active</span>}
                     </span>
                   </span>
                 )}
@@ -113,18 +110,18 @@ export function GenerationProgress({
                   <span>
                     Generation complete — {generated} ready
                     {failed > 0 && `, ${failed} failed`}
-                    {autoSend && <span className="text-amber-500 ml-1">· Sending automatically...</span>}
+                    {autoSend && <span className="text-amber-500 font-bold ml-1.5">· Auto-sending...</span>}
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-text-muted font-mono">
+                <span className="text-xs text-muted-foreground font-bold">
                   {Math.round(progress)}%
                 </span>
                 {status === "FAILED" && onRequeueFailed && (
                   <button
                     onClick={onRequeueFailed}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-error/10 hover:bg-error/20 text-error text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-red-500 bg-red-500/5 text-red-400 text-[10px] font-bold uppercase tracking-wider rounded-none cursor-pointer"
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
                     Retry Failed
@@ -133,12 +130,12 @@ export function GenerationProgress({
               </div>
             </div>
 
-            <div className="w-full h-2 rounded-full bg-bg-base overflow-hidden">
+            <div className="w-full h-3 bg-muted/40 border border-border overflow-hidden">
               {allPending ? (
-                <div className="h-full rounded-full bg-text-faint/30 animate-pulse" style={{ width: '100%' }} />
+                <div className="h-full bg-muted animate-pulse" style={{ width: '100%' }} />
               ) : (
                 <div
-                  className="h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-accent-primary to-accent-primary-hover"
+                  className="h-full bg-[#ea580c] transition-all duration-500 ease-out"
                   style={{ width: `${progress}%` }}
                 />
               )}
@@ -146,23 +143,23 @@ export function GenerationProgress({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-bg-surface border border-border-default rounded-xl p-4">
-              <p className="text-xs text-text-muted font-medium uppercase tracking-wider mb-1">Total</p>
-              <p className="text-xl font-bold">{total}</p>
+            <div className="border-2 border-border bg-card p-4 rounded-none">
+              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-1.5">Total</p>
+              <p className="font-pixel text-xl text-foreground">{total}</p>
             </div>
-            <div className="bg-bg-surface border border-border-default rounded-xl p-4">
-              <p className="text-xs text-success font-medium uppercase tracking-wider mb-1">Generated</p>
-              <p className="text-xl font-bold text-success">{generated}</p>
+            <div className="border-2 border-border bg-card p-4 rounded-none">
+              <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1.5">Generated</p>
+              <p className="font-pixel text-xl text-emerald-400">{generated}</p>
             </div>
-            <div className="bg-bg-surface border border-border-default rounded-xl p-4">
-              <p className="text-xs text-error font-medium uppercase tracking-wider mb-1">Failed</p>
-              <p className="text-xl font-bold text-error">{failed}</p>
+            <div className="border-2 border-border bg-card p-4 rounded-none">
+              <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest mb-1.5">Failed</p>
+              <p className="font-pixel text-xl text-red-400">{failed}</p>
             </div>
-            <div className="bg-bg-surface border border-border-default rounded-xl p-4">
-              <p className="text-xs text-accent-primary font-medium uppercase tracking-wider mb-1">
-                {pending > 0 ? "In Queue" : "Status"}
+            <div className="border-2 border-border bg-card p-4 rounded-none">
+              <p className="text-[10px] text-[#ea580c] font-bold uppercase tracking-widest mb-1.5">
+                {pending > 0 ? "Queue size" : "Status"}
               </p>
-              <p className="text-sm font-bold uppercase tracking-tight">
+              <p className="text-xs font-bold uppercase tracking-wider text-foreground">
                 {pending > 0 ? pending : status}
               </p>
             </div>

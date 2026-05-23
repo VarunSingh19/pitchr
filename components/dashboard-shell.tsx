@@ -62,30 +62,30 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* ── Sidebar ── */}
       <aside
         className={cn(
-          "flex flex-col border-r border-border-default bg-bg-surface transition-all duration-300 ease-in-out flex-shrink-0",
-          collapsed ? "w-[68px]" : "w-[240px]"
+          "flex flex-col border-r-2 border-border bg-card transition-all duration-300 ease-in-out flex-shrink-0",
+          collapsed ? "w-[60px]" : "w-[220px]"
         )}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center px-4 border-b border-border-default">
+        <div className="h-14 flex items-center px-3 border-b-2 border-border">
           <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-lg bg-accent-primary flex items-center justify-center flex-shrink-0">
-              <Mail className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 bg-[#ea580c] flex items-center justify-center flex-shrink-0">
+              <Mail className="w-4 h-4 text-background" />
             </div>
             {!collapsed && (
-              <span className="text-lg font-semibold tracking-tight whitespace-nowrap">
-                Pitchr
+              <span className="font-pixel text-sm tracking-tight whitespace-nowrap text-foreground">
+                PITCHR
               </span>
             )}
           </Link>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-3 space-y-1">
+        <nav className="flex-1 py-3 px-2 space-y-0.5">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const isActive =
               href === "/dashboard"
@@ -97,14 +97,14 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
+                  "flex items-center gap-2.5 px-2.5 py-2 text-xs font-mono font-medium uppercase tracking-wider transition-all duration-150",
                   isActive
-                    ? "bg-accent-dim text-accent-primary"
-                    : "text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+                    ? "bg-[#ea580c]/10 text-[#ea580c] border-l-2 border-[#ea580c]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-foreground/5 border-l-2 border-transparent"
                 )}
                 title={collapsed ? label : undefined}
               >
-                <Icon className={cn("w-[18px] h-[18px] flex-shrink-0", isActive && "text-accent-primary")} />
+                <Icon className={cn("w-4 h-4 flex-shrink-0", isActive && "text-[#ea580c]")} />
                 {!collapsed && <span className="truncate">{label}</span>}
               </Link>
             );
@@ -113,19 +113,19 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
 
         {/* Admin link — only for admin users */}
         {user.role === "admin" && (
-          <div className="px-3 pb-2">
+          <div className="px-2 pb-1">
             <Link
               href="/admin"
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
+                "flex items-center gap-2.5 px-2.5 py-2 text-xs font-mono font-medium uppercase tracking-wider transition-all duration-150",
                 pathname.startsWith("/admin")
-                  ? "bg-orange-500/10 text-orange-400"
-                  : "text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+                  ? "bg-[#FBBF24]/10 text-[#FBBF24] border-l-2 border-[#FBBF24]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-foreground/5 border-l-2 border-transparent"
               )}
               title={collapsed ? "Admin Panel" : undefined}
             >
-              <Shield className={cn("w-[18px] h-[18px] flex-shrink-0", pathname.startsWith("/admin") && "text-orange-400")} />
-              {!collapsed && <span className="truncate">Admin Panel</span>}
+              <Shield className={cn("w-4 h-4 flex-shrink-0", pathname.startsWith("/admin") && "text-[#FBBF24]")} />
+              {!collapsed && <span className="truncate">Admin</span>}
             </Link>
           </div>
         )}
@@ -133,95 +133,95 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="mx-3 mb-2 p-2 rounded-xl text-text-faint hover:text-text-muted hover:bg-bg-elevated transition-colors flex items-center justify-center"
+          className="mx-2 mb-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors flex items-center justify-center border border-border"
         >
           {collapsed ? (
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           ) : (
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3.5 h-3.5" />
           )}
         </button>
 
         {/* User section */}
-        <div className="border-t border-border-default p-3 space-y-1">
+        <div className="border-t-2 border-border p-2 space-y-1">
           <Link
             href="/dashboard/billing"
-            className="flex items-center gap-2.5 px-2 py-2 overflow-hidden hover:bg-bg-elevated rounded-xl transition-all duration-150 cursor-pointer text-left w-full group"
+            className="flex items-center gap-2 px-2 py-2 overflow-hidden hover:bg-foreground/5 transition-all duration-150 cursor-pointer text-left w-full group"
           >
             {user.image ? (
               <img
                 src={user.image}
                 alt={user.name}
-                className="w-8 h-8 rounded-lg flex-shrink-0 object-cover border border-border-default group-hover:border-accent-primary transition-colors"
+                className="w-7 h-7 flex-shrink-0 object-cover border-2 border-border group-hover:border-[#ea580c] transition-colors"
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-bg-elevated flex items-center justify-center flex-shrink-0 group-hover:bg-accent-dim transition-colors">
-                <UserIcon className="w-4 h-4 text-text-muted group-hover:text-accent-primary" />
+              <div className="w-7 h-7 bg-foreground/5 flex items-center justify-center flex-shrink-0 border-2 border-border group-hover:border-[#ea580c] transition-colors">
+                <UserIcon className="w-3.5 h-3.5 text-muted-foreground group-hover:text-[#ea580c]" />
               </div>
             )}
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-1">
-                  <p className="text-sm font-medium truncate text-text-primary group-hover:text-accent-primary transition-colors">
+                  <p className="text-xs font-mono font-medium truncate text-foreground group-hover:text-[#ea580c] transition-colors">
                     {user.name}
                   </p>
                   {(() => {
                     const p = user.plan || "free";
                     if (p === "starter") {
                       return (
-                        <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20 flex-shrink-0">
+                        <span className="px-1.5 py-0.5 text-[7px] font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/30 flex-shrink-0 uppercase tracking-wider">
                           Starter
                         </span>
                       );
                     }
                     if (p === "pro") {
                       return (
-                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-accent-dim text-accent-primary border border-accent-primary/20 flex-shrink-0">
+                        <span className="px-1.5 py-0.5 text-[7px] font-mono font-bold bg-[#ea580c]/10 text-[#ea580c] border border-[#ea580c]/30 flex-shrink-0 uppercase tracking-wider">
                           Pro
                         </span>
                       );
                     }
                     if (p === "enterprise") {
                       return (
-                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 flex-shrink-0 animate-pulse">
+                        <span className="px-1.5 py-0.5 text-[7px] font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/30 flex-shrink-0 uppercase tracking-wider animate-pulse">
                           Ent.
                         </span>
                       );
                     }
                     return (
-                      <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-bg-elevated text-text-muted border border-border-default flex-shrink-0">
+                      <span className="px-1.5 py-0.5 text-[7px] font-mono font-bold bg-foreground/5 text-muted-foreground border border-border flex-shrink-0 uppercase tracking-wider">
                         Free
                       </span>
                     );
                   })()}
                 </div>
-                <p className="text-xs text-text-faint truncate">{user.email}</p>
+                <p className="text-[9px] font-mono text-muted-foreground truncate">{user.email}</p>
               </div>
             )}
           </Link>
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
             className={cn(
-              "flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm text-text-muted hover:text-error hover:bg-error-dim transition-colors",
+              "flex items-center gap-2 w-full px-2.5 py-2 text-xs font-mono text-muted-foreground hover:text-red-400 hover:bg-red-400/5 transition-colors uppercase tracking-wider",
               collapsed && "justify-center"
             )}
             title={collapsed ? "Sign out" : undefined}
           >
-            <LogOut className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span>Sign out</span>}
+            <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
+            {!collapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* ── Main content ── */}
-      <main className="flex-1 overflow-y-auto bg-bg-base flex flex-col">
+      <main className="flex-1 overflow-y-auto bg-background dot-grid-bg flex flex-col">
         {isImpersonating && (
-          <div className="bg-amber-600 text-white px-6 py-3 flex items-center justify-between shadow-md flex-shrink-0 animate-fade-in border-b border-amber-700">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <span className="text-base">⚠️</span>
+          <div className="bg-[#FBBF24] text-black px-6 py-3 flex items-center justify-between flex-shrink-0 animate-fade-in border-b-2 border-[#FBBF24]/80">
+            <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest">
+              <span>⚠</span>
               <span>
-                <strong>Impersonation Active:</strong> You are viewing Pitchr as <strong>{user.email}</strong>.
+                Impersonating: <strong>{user.email}</strong>
               </span>
             </div>
             <button
@@ -240,9 +240,9 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
                   alert("Failed to stop impersonation");
                 }
               }}
-              className="bg-white text-amber-700 px-3.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-amber-50 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="bg-black text-[#FBBF24] px-4 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-black/80 transition-colors"
             >
-              Stop Impersonating
+              Stop
             </button>
           </div>
         )}

@@ -115,9 +115,9 @@ export function FileUpload({
   const hasFile = !!fileName && fileName !== "0 companies loaded";
 
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-text-secondary flex items-center gap-2">
-        <Icon className="w-4 h-4" />
+    <div className="space-y-2 font-mono text-xs">
+      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+        <Icon className="w-3.5 h-3.5 text-[#ea580c]" />
         {label}
       </label>
 
@@ -130,12 +130,12 @@ export function FileUpload({
         onDrop={handleDrop}
         onClick={() => !hasFile && inputRef.current?.click()}
         className={cn(
-          "relative rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 cursor-pointer",
+          "relative border-2 border-dashed p-8 text-center transition-all cursor-pointer rounded-none",
           isDragging
-            ? "border-accent-primary bg-accent-dim scale-[1.01]"
+            ? "border-[#ea580c] bg-[#ea580c]/5 scale-[1.01]"
             : hasFile
-              ? "border-border-subtle bg-bg-surface cursor-default"
-              : "border-border-default bg-bg-surface hover:border-border-subtle hover:bg-bg-elevated"
+              ? "border-border bg-foreground/[0.01] cursor-default"
+              : "border-border bg-card hover:border-foreground/20"
         )}
       >
         <input
@@ -148,21 +148,21 @@ export function FileUpload({
 
         {isLoading ? (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent-dim flex items-center justify-center">
-              <div className="w-5 h-5 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+            <div className="w-10 h-10 border border-[#ea580c]/30 bg-[#ea580c]/5 flex items-center justify-center rounded-none">
+              <div className="w-4 h-4 border-2 border-[#ea580c] border-t-transparent animate-spin" />
             </div>
-            <p className="text-sm text-text-muted">Parsing resume...</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Parsing file...</p>
           </div>
         ) : hasFile ? (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-success-dim flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-success" />
+            <div className="w-10 h-10 border border-emerald-400/30 bg-emerald-400/5 flex items-center justify-center rounded-none">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <p className="text-sm font-medium text-text-primary">{fileName}</p>
+              <p className="text-xs font-bold text-foreground">{fileName}</p>
               {resumeWordCount && (
-                <p className="text-xs text-text-muted mt-0.5">
-                  {resumeWordCount} words extracted
+                <p className="text-[10px] text-muted-foreground mt-0.5 font-bold">
+                  {resumeWordCount} WORDS EXTRACTED
                 </p>
               )}
             </div>
@@ -171,30 +171,30 @@ export function FileUpload({
                 e.stopPropagation();
                 handleClear();
               }}
-              className="flex items-center gap-1 text-xs text-text-faint hover:text-error transition-colors mt-1"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border bg-card text-muted-foreground hover:text-red-400 hover:border-red-400 transition-colors text-[10px] font-bold uppercase tracking-wider rounded-none cursor-pointer mt-1"
             >
-              <X className="w-3 h-3" />
-              Remove
+              <X className="w-3.5 h-3.5" />
+              Remove File
             </button>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-bg-elevated flex items-center justify-center">
-              <Upload className="w-5 h-5 text-text-muted" />
+            <div className="w-10 h-10 border border-border bg-foreground/5 flex items-center justify-center rounded-none">
+              <Upload className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-sm text-text-secondary">
-                Drop your <span className="font-medium text-text-primary">{accept}</span> file here
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider">
+                Drop your <span className="text-[#ea580c]">{accept}</span> file here
               </p>
-              <p className="text-xs text-text-faint mt-1">or click to browse</p>
+              <p className="text-[10px] text-muted-foreground mt-1">or click to browse local folders</p>
             </div>
           </div>
         )}
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-error px-1">
-          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+        <div className="flex items-center gap-2 text-xs text-red-400 font-bold uppercase tracking-wider px-1">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
       )}

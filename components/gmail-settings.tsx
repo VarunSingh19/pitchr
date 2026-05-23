@@ -31,7 +31,6 @@ export function GmailSettings() {
         if (data.gmailConfig) {
           setAddress(data.gmailConfig.address || "");
           setValidated(data.gmailConfig.validated || false);
-          // Don't populate password — it's encrypted server-side
         }
       })
       .catch(() => {})
@@ -125,8 +124,8 @@ export function GmailSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-text-muted">
-        <Loader2 className="w-5 h-5 animate-spin" />
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin text-[#ea580c]" />
       </div>
     );
   }
@@ -134,35 +133,35 @@ export function GmailSettings() {
   // Show read-only view when validated and NOT editing
   if (validated && !editing) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 font-mono">
         <div>
-          <h2 className="text-lg font-semibold">Gmail Configuration</h2>
-          <p className="text-sm text-text-muted">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">Gmail Configuration</h2>
+          <p className="text-xs text-muted-foreground mt-1">
             Configure your Gmail app password for sending emails
           </p>
         </div>
 
-        <div className="rounded-2xl border border-border-default bg-bg-surface p-6 space-y-4">
+        <div className="border-2 border-border bg-card p-6 space-y-4 rounded-none">
           {/* Status */}
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-success-dim text-success text-sm">
-            <CheckCircle2 className="w-4 h-4" />
+          <div className="flex items-center gap-2 px-4 py-3 border-2 border-emerald-400/30 bg-emerald-400/5 text-emerald-400 text-xs uppercase tracking-wider font-bold">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             Gmail is configured and validated
           </div>
 
           {/* Current email display */}
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-bg-elevated border border-border-default">
+          <div className="grid md:grid-cols-2 gap-4 p-4 bg-foreground/[0.02] border-2 border-border rounded-none">
             <div>
-              <p className="text-xs text-text-faint uppercase tracking-wider font-medium mb-0.5">Gmail Address</p>
-              <p className="text-sm font-medium">{address}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1">Gmail Address</p>
+              <p className="text-xs font-bold text-foreground">{address}</p>
             </div>
             <div>
-              <p className="text-xs text-text-faint uppercase tracking-wider font-medium mb-0.5">App Password</p>
-              <p className="text-sm font-mono text-text-muted">••••••••••••••••</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1">App Password</p>
+              <p className="text-xs text-muted-foreground">••••••••••••••••</p>
             </div>
           </div>
 
           {success && (
-            <div className="flex items-center gap-2 text-sm text-success">
+            <div className="flex items-center gap-2 text-xs text-emerald-400 font-bold uppercase tracking-wider">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
               {success}
             </div>
@@ -171,10 +170,10 @@ export function GmailSettings() {
           {/* Edit button */}
           <button
             onClick={handleStartEditing}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border-default hover:bg-bg-elevated text-sm font-medium text-text-muted hover:text-text-primary transition-all"
+            className="flex items-center gap-2 px-5 py-3 border-2 border-border hover:border-[#ea580c] hover:bg-[#ea580c]/5 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-[#ea580c] transition-all rounded-none cursor-pointer"
           >
             <Pencil className="w-4 h-4" />
-            Update Gmail Configuration
+            Update Credentials
           </button>
         </div>
       </div>
@@ -183,18 +182,18 @@ export function GmailSettings() {
 
   // Show editable form (new setup or editing mode)
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-mono">
       <div>
-        <h2 className="text-lg font-semibold">Gmail Configuration</h2>
-        <p className="text-sm text-text-muted">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">Gmail Configuration</h2>
+        <p className="text-xs text-muted-foreground mt-1">
           {editing ? "Update your Gmail credentials below" : "Configure your Gmail app password for sending emails"}
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border-default bg-bg-surface p-6 space-y-5">
+      <div className="border-2 border-border bg-card p-6 space-y-5 rounded-none">
         {/* Email */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wider">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             Gmail Address
           </label>
           <input
@@ -202,13 +201,13 @@ export function GmailSettings() {
             value={address}
             onChange={(e) => { setAddress(e.target.value); setError(""); }}
             placeholder="your.email@gmail.com"
-            className="w-full px-4 py-2.5 rounded-xl border border-border-default bg-bg-elevated text-sm placeholder:text-text-faint focus:border-accent-primary focus:outline-none transition-colors"
+            className="w-full px-4 py-3 border-2 border-border bg-foreground/[0.02] text-xs font-mono placeholder:text-muted-foreground/50 focus:border-[#ea580c] focus:outline-none transition-colors rounded-none"
           />
         </div>
 
         {/* App Password */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wider">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             App Password {editing && "(enter new password)"}
           </label>
           <div className="relative">
@@ -218,38 +217,38 @@ export function GmailSettings() {
               onChange={(e) => { setAppPassword(e.target.value.replace(/\s/g, "")); setError(""); }}
               placeholder="16-character app password"
               maxLength={16}
-              className="w-full px-4 py-2.5 pr-10 rounded-xl border border-border-default bg-bg-elevated text-sm placeholder:text-text-faint focus:border-accent-primary focus:outline-none transition-colors font-mono"
+              className="w-full px-4 py-3 pr-10 border-2 border-border bg-foreground/[0.02] text-xs font-mono placeholder:text-muted-foreground/50 focus:border-[#ea580c] focus:outline-none transition-colors rounded-none"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-muted"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-          <p className="text-[11px] text-text-faint">
-            Generate at{" "}
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Generate credentials in Google Account under{" "}
             <a
               href="https://myaccount.google.com/apppasswords"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-accent-primary hover:underline"
+              className="text-[#ea580c] hover:underline font-bold"
             >
-              myaccount.google.com/apppasswords
+              App Passwords
             </a>
           </p>
         </div>
 
         {/* Error/Success */}
         {error && (
-          <div className="flex items-center gap-2 text-sm text-error">
+          <div className="flex items-center gap-2 text-xs text-red-400 font-bold uppercase tracking-wider">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             {error}
           </div>
         )}
         {success && (
-          <div className="flex items-center gap-2 text-sm text-success">
+          <div className="flex items-center gap-2 text-xs text-emerald-400 font-bold uppercase tracking-wider">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             {success}
           </div>
@@ -260,7 +259,7 @@ export function GmailSettings() {
           <button
             onClick={handleValidateAndSave}
             disabled={validating || saving || !address.trim() || !appPassword.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent-primary hover:bg-accent-primary-hover disabled:opacity-40 text-white text-sm font-medium transition-all"
+            className="flex items-center gap-2 px-6 py-3 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background disabled:opacity-40 disabled:hover:bg-foreground disabled:hover:text-background transition-all rounded-none cursor-pointer"
           >
             {validating ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -273,7 +272,7 @@ export function GmailSettings() {
           {editing && (
             <button
               onClick={handleCancelEditing}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-muted hover:bg-bg-elevated transition-colors"
+              className="px-5 py-3 border-2 border-border text-xs font-bold uppercase tracking-widest text-muted-foreground hover:bg-foreground/5 transition-colors rounded-none cursor-pointer"
             >
               Cancel
             </button>

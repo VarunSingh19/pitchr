@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
 import Campaign from "@/models/Campaign";
-import { History, Search, FileText, CheckCircle2, AlertCircle, MailX } from "lucide-react";
+import { History, Search, FileText, CheckCircle2, AlertCircle, MailX, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 export default async function HistoryPage() {
@@ -22,128 +22,152 @@ export default async function HistoryPage() {
     .lean();
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col items-start gap-4">
-        <div className="min-w-0 w-full">
-          <h1 className="text-2xl font-bold tracking-tight text-text-primary flex items-center gap-2">
-            <History className="w-6 h-6 text-accent-primary flex-shrink-0" />
-            <span>Campaign History</span>
-          </h1>
-          <p className="text-text-secondary mt-1 text-sm sm:text-base leading-relaxed break-words">
-            View the performance and details of your past outreach campaigns.
-          </p>
+    <div className="space-y-8 animate-fade-in font-mono">
+      {/* Page Header */}
+      <div>
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-2.5 h-2.5 bg-[#ea580c] animate-blink" />
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+            // PIPELINE ARCHIVES
+          </span>
         </div>
+        <h1 className="font-pixel text-3xl sm:text-4xl tracking-tight text-foreground">
+          CAMPAIGN HISTORY
+        </h1>
+        <p className="text-xs text-muted-foreground mt-1 tracking-wide">
+          Inspect, evaluate, and trace historical outbound runs
+        </p>
       </div>
 
       {campaigns.length === 0 ? (
-        <div className="border border-border-default rounded-2xl p-12 text-center bg-bg-surface flex flex-col items-center">
-          <div className="w-16 h-16 bg-bg-subtle rounded-full flex items-center justify-center mb-4">
-            <History className="w-8 h-8 text-text-muted" />
+        <div className="border-2 border-border p-12 text-center bg-card flex flex-col items-center rounded-none">
+          <div className="w-16 h-16 border-2 border-border bg-foreground/5 flex items-center justify-center mb-4 rounded-none">
+            <History className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-text-primary mb-2">No Campaigns Yet</h3>
-          <p className="text-text-secondary max-w-md mx-auto mb-6">
-            You haven&apos;t sent any email campaigns yet. Start a new campaign to see your history here!
+          <h3 className="text-sm font-bold uppercase tracking-widest text-foreground mb-2">No Campaigns Found</h3>
+          <p className="text-xs text-muted-foreground max-w-md mx-auto mb-6 leading-relaxed">
+            No historical records located. Launch your initial outbound campaign to gather telemetry here.
           </p>
           <Link
             href="/dashboard/campaign/new"
-            className="px-6 py-2.5 rounded-xl bg-accent-primary hover:bg-accent-primary-hover text-white text-sm font-medium transition-all"
+            className="px-6 py-3 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-colors rounded-none"
           >
             Create New Campaign
           </Link>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {campaigns.map((campaign: any) => {
-            const bouncedCount = campaign.bouncedCount || 0;
-            const deliveredCount = Math.max(0, campaign.sentCount - bouncedCount);
-            const totalAttempted = campaign.leadsCount || campaign.totalLeads || 0;
-            const successRate = totalAttempted > 0
-              ? Math.round((deliveredCount / totalAttempted) * 100)
-              : 0;
+        <div className="space-y-6">
+          <div className="flex items-center gap-4 mb-2">
+            <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+              // SECTION: Records
+            </span>
+            <div className="flex-1 border-t border-border" />
+            <span className="inline-block h-2 w-2 bg-[#ea580c] animate-blink" />
+            <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+              {campaigns.length.toString().padStart(2, "0")}
+            </span>
+          </div>
 
-            return (
-              <div 
-                key={campaign._id.toString()}
-                className="bg-bg-surface border border-border-default rounded-2xl p-6 transition-all hover:border-accent-primary/30"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-3 sm:gap-4">
-                  <div className="min-w-0">
-                    <h3 className="text-lg font-semibold text-text-primary mb-1 truncate">
-                      {campaign.name}
-                    </h3>
-                    <p className="text-sm text-text-secondary">
-                      Sent on {new Date(campaign.createdAt).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
-                  <span className="self-start sm:self-auto px-3 py-1 rounded-full bg-accent-dim text-accent-primary text-xs font-semibold uppercase tracking-wider flex-shrink-0">
-                    {campaign.status}
-                  </span>
-                </div>
+          <div className="grid gap-6">
+            {campaigns.map((campaign: any) => {
+              const bouncedCount = campaign.bouncedCount || 0;
+              const deliveredCount = Math.max(0, campaign.sentCount - bouncedCount);
+              const totalAttempted = campaign.leadsCount || campaign.totalLeads || 0;
+              const successRate = totalAttempted > 0
+                ? Math.round((deliveredCount / totalAttempted) * 100)
+                : 0;
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-bg-elevated rounded-xl p-4 border border-border-subtle">
-                    <div className="flex items-center gap-2 text-text-muted mb-1">
-                      <FileText className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase tracking-wider">Total</span>
+              const statusStyles = {
+                DRAFT: "text-muted-foreground border-border bg-muted/30",
+                GENERATING: "text-blue-400 border-blue-400/30 bg-blue-400/5",
+                READY: "text-emerald-400 border-emerald-400/30 bg-emerald-400/5",
+                SENDING: "text-[#ea580c] border-[#ea580c]/30 bg-[#ea580c]/5",
+                COMPLETED: "text-indigo-400 border-indigo-400/30 bg-indigo-400/5",
+                FAILED: "text-red-400 border-red-400/30 bg-red-400/5",
+              } as Record<string, string>;
+
+              return (
+                <div 
+                  key={campaign._id.toString()}
+                  className="bg-card border-2 border-border p-6 transition-all hover:border-[#ea580c]/40 rounded-none"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-6 gap-3 sm:gap-4">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-bold text-foreground uppercase tracking-wider truncate">
+                        {campaign.name}
+                      </h3>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        PROCESSED ON {new Date(campaign.createdAt).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }).toUpperCase()}
+                      </p>
                     </div>
-                    <p className="text-2xl font-bold text-text-primary">{totalAttempted}</p>
+                    <span className={`self-start sm:self-auto px-3 py-1 border text-[9px] font-bold uppercase tracking-[0.15em] rounded-none ${statusStyles[campaign.status] || "text-muted-foreground border-border"}`}>
+                      {campaign.status}
+                    </span>
                   </div>
 
-                  <div className="bg-success/5 rounded-xl p-4 border border-success/20">
-                    <div className="flex items-center gap-2 text-success mb-1">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase tracking-wider">Delivered</span>
-                    </div>
-                    <p className="text-2xl font-bold text-success">{deliveredCount}</p>
-                  </div>
-
-                  {bouncedCount > 0 && (
-                    <div className="bg-amber-500/5 rounded-xl p-4 border border-amber-500/20">
-                      <div className="flex items-center gap-2 text-amber-400 mb-1">
-                        <MailX className="w-4 h-4" />
-                        <span className="text-xs font-medium uppercase tracking-wider">Bounced</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-foreground/[0.01] rounded-none p-4 border border-border">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
+                        <FileText className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-bold uppercase tracking-[0.15em]">Total Leads</span>
                       </div>
-                      <p className="text-2xl font-bold text-amber-400">{bouncedCount}</p>
+                      <p className="font-pixel text-xl text-foreground">{totalAttempted}</p>
                     </div>
-                  )}
 
-                  <div className="bg-error/5 rounded-xl p-4 border border-error/20">
-                    <div className="flex items-center gap-2 text-error mb-1">
-                      <AlertCircle className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase tracking-wider">Failed</span>
+                    <div className="bg-emerald-400/[0.01] rounded-none p-4 border border-emerald-400/20">
+                      <div className="flex items-center gap-2 text-emerald-400 mb-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-bold uppercase tracking-[0.15em]">Delivered</span>
+                      </div>
+                      <p className="font-pixel text-xl text-emerald-400">{deliveredCount}</p>
                     </div>
-                    <p className="text-2xl font-bold text-error">{campaign.failedCount}</p>
+
+                    <div className="bg-amber-400/[0.01] rounded-none p-4 border border-amber-400/20">
+                      <div className="flex items-center gap-2 text-amber-400 mb-1.5">
+                        <MailX className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-bold uppercase tracking-[0.15em]">Bounced</span>
+                      </div>
+                      <p className="font-pixel text-xl text-amber-400">{bouncedCount}</p>
+                    </div>
+
+                    <div className="bg-red-400/[0.01] rounded-none p-4 border border-red-500/20">
+                      <div className="flex items-center gap-2 text-red-400 mb-1.5">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-bold uppercase tracking-[0.15em]">Failed</span>
+                      </div>
+                      <p className="font-pixel text-xl text-red-400">{campaign.failedCount}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      Delivery Rate: <span className="text-[#ea580c]">{successRate}%</span>
+                      {bouncedCount > 0 && (
+                        <span className="text-[10px] text-amber-400 font-bold ml-2 lowercase">
+                          ({bouncedCount} bounced)
+                        </span>
+                      )}
+                    </div>
+                    <Link 
+                      href={`/dashboard/history/${campaign._id}`}
+                      className="text-xs font-bold text-[#ea580c] hover:text-[#ea580c]/80 uppercase tracking-widest inline-flex items-center gap-1.5 group"
+                    >
+                      View Logs 
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </Link>
                   </div>
                 </div>
-
-                <div className="mt-4 pt-4 border-t border-border-default flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-text-secondary">
-                    Delivery Success Rate: <span className="text-text-primary">{successRate}%</span>
-                    {bouncedCount > 0 && (
-                      <span className="text-xs text-amber-400 ml-2">
-                        ({bouncedCount} bounced back)
-                      </span>
-                    )}
-                  </div>
-                  <Link 
-                    href={`/dashboard/history/${campaign._id}`}
-                    className="text-sm font-medium text-accent-primary hover:text-accent-primary-hover transition-colors inline-flex items-center gap-1"
-                  >
-                    View Full Logs <span aria-hidden="true">&rarr;</span>
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
   );
 }
-

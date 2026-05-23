@@ -16,6 +16,9 @@ import {
   ShieldAlert,
   Activity,
   Check,
+  Terminal,
+  Zap,
+  Inbox,
 } from "lucide-react";
 
 interface DashboardStats {
@@ -87,21 +90,27 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-40 space-y-4">
-        <Loader2 className="w-10 h-10 animate-spin text-accent-primary" />
-        <p className="text-sm font-semibold text-text-muted">Assembling your workspace stats...</p>
+        <div className="w-12 h-12 border-2 border-[#ea580c] flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-[#ea580c]" />
+        </div>
+        <p className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
+          Loading workspace telemetry...
+        </p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-8 text-center max-w-md mx-auto my-20">
-        <ShieldAlert className="w-12 h-12 text-red-400 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-red-400">Failed to load statistics</h3>
-        <p className="text-xs text-text-muted mt-2">{error}</p>
+      <div className="border-2 border-red-500 bg-red-500/5 p-8 text-center max-w-md mx-auto my-20">
+        <ShieldAlert className="w-10 h-10 text-red-400 mx-auto mb-3" />
+        <h3 className="text-sm font-mono font-bold text-red-400 uppercase tracking-widest">
+          System Fault
+        </h3>
+        <p className="text-xs text-muted-foreground font-mono mt-2">{error}</p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-5 px-5 py-2.5 bg-accent-primary hover:bg-accent-primary-hover text-white rounded-xl text-xs font-semibold transition-all shadow-md shadow-accent-primary/10"
+          className="mt-5 px-6 py-2.5 bg-foreground text-background text-xs font-mono font-bold uppercase tracking-widest hover:bg-[#ea580c] transition-colors"
         >
           Retry
         </button>
@@ -122,347 +131,449 @@ export default function DashboardPage() {
     : "100";
 
   return (
-    <div className="space-y-8 animate-fade-in text-text-primary">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 animate-fade-in">
+      {/* ── Page Header ── */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-text-muted">
-            Your personalized cold email personalization and outbound center
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-2.5 h-2.5 bg-[#ea580c] animate-blink" />
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-muted-foreground">
+              // DASHBOARD
+            </span>
+          </div>
+          <h1 className="font-pixel text-3xl sm:text-4xl tracking-tight text-foreground">
+            COMMAND CENTER
+          </h1>
+          <p className="text-xs font-mono text-muted-foreground mt-1 tracking-wide">
+            Outbound pipeline status &amp; campaign telemetry
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-accent-primary bg-accent-dim px-2.5 py-1 rounded-full border border-accent-primary/20">
-            Workspace Scoped
+          <span className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-[#ea580c] border border-[#ea580c]/30 bg-[#ea580c]/5 px-3 py-1.5">
+            Live
           </span>
         </div>
       </div>
 
-      {/* Welcome / Setup checklist banner */}
+      {/* ── Welcome / Setup checklist banner ── */}
       {isSetupComplete ? (
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-700 p-6 md:p-8 text-white border border-violet-500/20 shadow-xl shadow-indigo-900/10">
-          <div className="absolute right-0 top-0 -mt-12 -mr-12 w-64 h-64 rounded-full bg-white/5 blur-2xl pointer-events-none"></div>
-          <div className="absolute left-1/3 bottom-0 -mb-16 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none"></div>
+        <div className="relative overflow-hidden border-2 border-foreground/20 bg-foreground/[0.03] p-6 md:p-8">
+          {/* Decorative corner marks */}
+          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#ea580c]" />
+          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-[#ea580c]" />
+          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-[#ea580c]" />
+          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#ea580c]" />
 
           <div className="relative z-10 max-w-2xl">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white/10 border border-white/20 backdrop-blur-md mb-4">
-              ✨ Outbound Ready
-            </span>
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">
-              Welcome back, {data?.profile.name || "outbound sender"}! 👋
+            <div className="flex items-center gap-2 mb-4">
+              <Terminal className="w-4 h-4 text-[#ea580c]" />
+              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[#ea580c] font-bold">
+                System Online
+              </span>
+            </div>
+            <h2 className="font-pixel text-xl md:text-2xl text-foreground mb-2">
+              Welcome back, {data?.profile.name || "operator"}
             </h2>
-            <p className="text-white/80 text-sm md:text-base leading-relaxed">
-              Your personalized emails are maintaining a <strong className="text-white">{deliverabilityRate}%</strong> deliverability rating. You have run <strong className="text-white">{data?.campaigns.total} campaigns</strong> in total. Head over to Campaign Builder to launch another batch!
+            <p className="text-xs font-mono text-muted-foreground leading-relaxed max-w-xl">
+              Deliverability holding at{" "}
+              <span className="text-[#ea580c] font-bold">{deliverabilityRate}%</span>.{" "}
+              <span className="text-foreground font-semibold">{data?.campaigns.total}</span> campaigns
+              processed to date. Pipeline is clear for next batch.
             </p>
           </div>
         </div>
       ) : (
-        <div className="rounded-3xl border border-warning/20 bg-warning-dim/30 p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2.5 text-warning">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <h3 className="font-bold text-base">Complete your workspace setup</h3>
+        <div className="border-2 border-[#FBBF24]/40 bg-[#FBBF24]/5 p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-[#FBBF24] flex-shrink-0" />
+              <h3 className="font-mono font-bold text-sm uppercase tracking-widest text-[#FBBF24]">
+                Setup Required
+              </h3>
             </div>
-            <p className="text-sm text-text-secondary max-w-xl">
-              You need to configure your personal Gmail outbound credentials and upload your master resume before you can generate and send personalized campaigns.
+            <p className="text-xs font-mono text-muted-foreground max-w-xl leading-relaxed">
+              Configure Gmail SMTP credentials and upload your master resume before launching campaigns.
             </p>
             {/* Checklist */}
-            <div className="flex flex-wrap gap-4 mt-4 text-xs font-semibold">
+            <div className="flex flex-wrap gap-4 mt-3 text-xs font-mono">
               <div className="flex items-center gap-2">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center border ${data?.setup.gmailConnected ? 'bg-success/15 border-success/30 text-success' : 'bg-warning/15 border-warning/30 text-warning'}`}>
-                  {data?.setup.gmailConnected ? <Check className="w-3.5 h-3.5" /> : "!"}
+                <span className={`w-4 h-4 flex items-center justify-center border-2 ${data?.setup.gmailConnected ? 'border-emerald-400 text-emerald-400' : 'border-[#FBBF24] text-[#FBBF24]'}`}>
+                  {data?.setup.gmailConnected ? <Check className="w-3 h-3" /> : "!"}
                 </span>
-                <span className={data?.setup.gmailConnected ? "text-success" : "text-text-muted"}>Gmail SMTP Config</span>
+                <span className={`uppercase tracking-wider text-[10px] ${data?.setup.gmailConnected ? "text-emerald-400" : "text-muted-foreground"}`}>
+                  Gmail SMTP
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center border ${data?.setup.resumeUploaded ? 'bg-success/15 border-success/30 text-success' : 'bg-warning/15 border-warning/30 text-warning'}`}>
-                  {data?.setup.resumeUploaded ? <Check className="w-3.5 h-3.5" /> : "!"}
+                <span className={`w-4 h-4 flex items-center justify-center border-2 ${data?.setup.resumeUploaded ? 'border-emerald-400 text-emerald-400' : 'border-[#FBBF24] text-[#FBBF24]'}`}>
+                  {data?.setup.resumeUploaded ? <Check className="w-3 h-3" /> : "!"}
                 </span>
-                <span className={data?.setup.resumeUploaded ? "text-success" : "text-text-muted"}>Resume Document</span>
+                <span className={`uppercase tracking-wider text-[10px] ${data?.setup.resumeUploaded ? "text-emerald-400" : "text-muted-foreground"}`}>
+                  Resume Doc
+                </span>
               </div>
             </div>
           </div>
           <Link
             href="/dashboard/settings"
-            className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-warning hover:bg-warning/90 text-bg-base font-bold transition-all text-sm hover:scale-[1.01] hover:shadow-lg"
+            className="flex-shrink-0 inline-flex items-center gap-2 bg-[#FBBF24] text-black font-mono font-bold text-xs uppercase tracking-widest px-6 py-3 hover:bg-[#FBBF24]/80 transition-colors"
           >
-            Configure Settings
+            Configure
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       )}
 
-      {/* Large Gradient KPI Cards */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Deliverability KPI Card */}
-        <div className="group relative overflow-hidden rounded-3xl border border-accent-primary/20 bg-gradient-to-br from-accent-primary/5 to-indigo-500/10 p-6 hover:scale-[1.01] hover:shadow-xl hover:shadow-indigo-950/5 transition-all duration-300">
-          <div className="absolute right-4 top-4 opacity-10 group-hover:opacity-20 transition-opacity duration-300 pointer-events-none">
-            <Mail className="w-24 h-24 text-accent-primary" />
-          </div>
-          <div className="flex items-center gap-3.5 mb-4">
-            <div className="w-11 h-11 rounded-2xl bg-accent-dim flex items-center justify-center border border-accent-primary/20">
-              <Mail className="w-5.5 h-5.5 text-accent-primary" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-accent-primary uppercase tracking-wider">Outbound Deliverability</p>
-              <p className="text-[10px] text-text-muted mt-0.5">Scored across all cold outreach attempts</p>
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2.5">
-            <p className="text-4xl font-extrabold tracking-tight text-text-primary">
-              {deliverabilityRate}%
-            </p>
-            <span className="text-xs font-bold text-accent-primary bg-accent-dim px-2 py-0.5 rounded-lg border border-accent-primary/20">
-              {(data?.emails.sent ?? 0).toLocaleString()} sent
-            </span>
-          </div>
-          <div className="mt-4 pt-4 border-t border-border-default/45 flex items-center justify-between text-xs text-text-muted">
-            <span>Replies: <strong>{data?.emails.replied}</strong> (Bounces: {data?.emails.bounced})</span>
-            <Link href="/dashboard/history" className="text-accent-primary hover:text-accent-primary-hover font-semibold inline-flex items-center gap-0.5">
-              Campaign History <ArrowUpRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+      {/* ── KPI Metrics Strip ── */}
+      <div>
+        <div className="flex items-center gap-4 mb-4">
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
+            // SECTION: Metrics
+          </span>
+          <div className="flex-1 border-t border-border" />
+          <span className="inline-block h-2 w-2 bg-[#ea580c] animate-blink" />
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
+            01
+          </span>
         </div>
 
-        {/* Active Runs KPI Card */}
-        <div className="group relative overflow-hidden rounded-3xl border border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-amber-500/10 p-6 hover:scale-[1.01] hover:shadow-xl hover:shadow-orange-950/5 transition-all duration-300">
-          <div className="absolute right-4 top-4 opacity-10 group-hover:opacity-20 transition-opacity duration-300 pointer-events-none">
-            <PlusCircle className="w-24 h-24 text-orange-400" />
-          </div>
-          <div className="flex items-center gap-3.5 mb-4">
-            <div className="w-11 h-11 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
-              <Activity className="w-5.5 h-5.5 text-orange-400" />
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Deliverability KPI */}
+          <div className="group relative border-2 border-border hover:border-[#ea580c]/40 bg-card p-6 transition-all duration-200">
+            <div className="absolute top-0 right-0 w-16 h-16 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
+              <Mail className="w-full h-full text-foreground" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-orange-400/80 uppercase tracking-wider">Active Campaigns</p>
-              <p className="text-[10px] text-text-muted mt-0.5">Runs currently generating, ready, or sending</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 border-2 border-[#ea580c]/30 bg-[#ea580c]/5 flex items-center justify-center">
+                <Mail className="w-4 h-4 text-[#ea580c]" />
+              </div>
+              <div>
+                <p className="text-[9px] font-mono font-bold text-[#ea580c] uppercase tracking-[0.2em]">
+                  Deliverability
+                </p>
+                <p className="text-[9px] font-mono text-muted-foreground mt-0.5">
+                  All outbound attempts
+                </p>
+              </div>
+            </div>
+            <div className="flex items-baseline gap-3">
+              <p className="font-pixel text-4xl text-foreground">
+                {deliverabilityRate}%
+              </p>
+              <span className="text-[9px] font-mono font-bold text-[#ea580c] border border-[#ea580c]/20 bg-[#ea580c]/5 px-2 py-0.5">
+                {(data?.emails.sent ?? 0).toLocaleString()} sent
+              </span>
+            </div>
+            <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+              <span>
+                Replies: <strong className="text-foreground">{data?.emails.replied}</strong> ·
+                Bounces: <strong className="text-foreground">{data?.emails.bounced}</strong>
+              </span>
+              <Link href="/dashboard/history" className="text-[#ea580c] hover:text-[#ea580c]/80 font-bold uppercase tracking-wider inline-flex items-center gap-1">
+                History <ArrowUpRight className="w-3 h-3" />
+              </Link>
             </div>
           </div>
-          <div className="flex items-baseline gap-2.5">
-            <p className="text-4xl font-extrabold tracking-tight text-text-primary">
-              {activeCampaignsCount}
-            </p>
-            <span className="text-xs font-bold text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded-lg border border-orange-500/20">
-              {data?.campaigns.total} total
-            </span>
-          </div>
-          <div className="mt-4 pt-4 border-t border-border-default/45 flex items-center justify-between text-xs text-text-muted">
-            <span>Completed: <strong>{data?.campaigns.completed}</strong> (Drafts: {data?.campaigns.draft})</span>
-            <Link href="/dashboard/campaign/new" className="text-orange-400 hover:text-orange-300 font-semibold inline-flex items-center gap-0.5">
-              Launch Campaign <ArrowUpRight className="w-3.5 h-3.5" />
-            </Link>
+
+          {/* Active Campaigns KPI */}
+          <div className="group relative border-2 border-border hover:border-foreground/20 bg-card p-6 transition-all duration-200">
+            <div className="absolute top-0 right-0 w-16 h-16 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
+              <Activity className="w-full h-full text-foreground" />
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 border-2 border-foreground/20 bg-foreground/5 flex items-center justify-center">
+                <Activity className="w-4 h-4 text-foreground" />
+              </div>
+              <div>
+                <p className="text-[9px] font-mono font-bold text-foreground/70 uppercase tracking-[0.2em]">
+                  Active Runs
+                </p>
+                <p className="text-[9px] font-mono text-muted-foreground mt-0.5">
+                  Generating, ready, or sending
+                </p>
+              </div>
+            </div>
+            <div className="flex items-baseline gap-3">
+              <p className="font-pixel text-4xl text-foreground">
+                {activeCampaignsCount}
+              </p>
+              <span className="text-[9px] font-mono font-bold text-foreground/60 border border-foreground/15 bg-foreground/5 px-2 py-0.5">
+                {data?.campaigns.total} total
+              </span>
+            </div>
+            <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+              <span>
+                Completed: <strong className="text-foreground">{data?.campaigns.completed}</strong> ·
+                Drafts: <strong className="text-foreground">{data?.campaigns.draft}</strong>
+              </span>
+              <Link href="/dashboard/campaign/new" className="text-[#ea580c] hover:text-[#ea580c]/80 font-bold uppercase tracking-wider inline-flex items-center gap-1">
+                Launch <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* SVG Charts Grid */}
-      <div className="grid lg:grid-cols-12 gap-6">
-        {/* Email Volume Trend (Left/Major) */}
-        <div className="lg:col-span-8 bg-bg-surface border border-border-default rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-            <div>
-              <h3 className="text-base font-bold">Outbound Daily Volume</h3>
-              <p className="text-xs text-text-muted mt-0.5">Delivered vs Failed email trend (Last 30 Days)</p>
-            </div>
-            <div className="flex items-center gap-4 text-xs font-medium">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-md bg-green-400 inline-block"></span>
-                <span className="text-text-secondary">Delivered</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-md bg-red-400 inline-block"></span>
-                <span className="text-text-secondary">Bounced / Failed</span>
-              </div>
-            </div>
-          </div>
-          <div className="h-[180px] w-full flex items-end">
-            <EmailTrendBarChart stats={data?.dailyEmailStats || []} />
-          </div>
+      {/* ── Charts Section ── */}
+      <div>
+        <div className="flex items-center gap-4 mb-4">
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
+            // SECTION: Analytics
+          </span>
+          <div className="flex-1 border-t border-border" />
+          <span className="inline-block h-2 w-2 bg-[#ea580c] animate-blink" />
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
+            02
+          </span>
         </div>
 
-        {/* Email Status Distribution (Right/Minor) */}
-        <div className="lg:col-span-4 bg-bg-surface border border-border-default rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-base font-bold mb-1">Status Ratios</h3>
-            <p className="text-xs text-text-muted mb-6">Aggregate ratios of your email outcomes</p>
+        <div className="grid lg:grid-cols-12 gap-4">
+          {/* Email Volume Trend */}
+          <div className="lg:col-span-8 border-2 border-border bg-card p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
+              <div>
+                <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-foreground">
+                  Daily Volume
+                </h3>
+                <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                  Delivered vs failed · last 30 days
+                </p>
+              </div>
+              <div className="flex items-center gap-4 text-[10px] font-mono">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-1.5 bg-emerald-400 inline-block" />
+                  <span className="text-muted-foreground uppercase tracking-wider">Delivered</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-1.5 bg-red-400 inline-block" />
+                  <span className="text-muted-foreground uppercase tracking-wider">Failed</span>
+                </div>
+              </div>
+            </div>
+            <div className="h-[180px] w-full flex items-end">
+              <EmailTrendBarChart stats={data?.dailyEmailStats || []} />
+            </div>
           </div>
-          <div className="flex justify-center mb-6">
-            <EmailStatusDonutChart emails={data?.emails || { total: 0, sent: 0, failed: 0, replied: 0, bounced: 0, queued: 0, generated: 0 }} />
-          </div>
-          <div className="space-y-2 text-xs">
-            {(() => {
-              const emails = data?.emails || { sent: 0, replied: 0, bounced: 0, failed: 0, total: 1 };
-              const total = emails.total || 1;
-              const segments = [
-                { label: "Successful Deliveries", count: emails.sent, color: "bg-green-400" },
-                { label: "Lead Replies", count: emails.replied, color: "bg-indigo-400" },
-                { label: "Bounces Detected", count: emails.bounced, color: "bg-amber-400" },
-                { label: "Failed Runs", count: emails.failed, color: "bg-red-400" },
-              ];
-              return segments.map((item) => {
-                const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : "0.0";
-                return (
-                  <div key={item.label} className="flex items-center justify-between border-b border-border-default/45 pb-1.5 last:border-0 last:pb-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${item.color}`} />
-                      <span className="text-text-secondary">{item.label}</span>
+
+          {/* Email Status Distribution */}
+          <div className="lg:col-span-4 border-2 border-border bg-card p-6 flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-foreground mb-1">
+                Status Ratios
+              </h3>
+              <p className="text-[10px] font-mono text-muted-foreground mb-6">
+                Aggregate email outcomes
+              </p>
+            </div>
+            <div className="flex justify-center mb-6">
+              <EmailStatusDonutChart emails={data?.emails || { total: 0, sent: 0, failed: 0, replied: 0, bounced: 0, queued: 0, generated: 0 }} />
+            </div>
+            <div className="space-y-2 text-xs font-mono">
+              {(() => {
+                const emails = data?.emails || { sent: 0, replied: 0, bounced: 0, failed: 0, total: 1 };
+                const total = emails.total || 1;
+                const segments = [
+                  { label: "Delivered", count: emails.sent, color: "bg-emerald-400" },
+                  { label: "Replied", count: emails.replied, color: "bg-indigo-400" },
+                  { label: "Bounced", count: emails.bounced, color: "bg-amber-400" },
+                  { label: "Failed", count: emails.failed, color: "bg-red-400" },
+                ];
+                return segments.map((item) => {
+                  const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : "0.0";
+                  return (
+                    <div key={item.label} className="flex items-center justify-between border-b border-border/60 pb-1.5 last:border-0 last:pb-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 ${item.color}`} />
+                        <span className="text-muted-foreground text-[10px] uppercase tracking-wider">{item.label}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-foreground">{item.count}</span>
+                        <span className="text-muted-foreground text-[9px]">({pct}%)</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-text-primary">{item.count}</span>
-                      <span className="text-text-muted">({pct}%)</span>
-                    </div>
-                  </div>
-                );
-              });
-            })()}
+                  );
+                });
+              })()}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Campaigns & Quick Actions */}
-      <div className="grid lg:grid-cols-12 gap-6">
-        {/* Recent Campaigns (Left/Major) */}
-        <div className="lg:col-span-8 bg-bg-surface border border-border-default rounded-3xl p-6 shadow-sm font-sans">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-base font-bold">Outreach Campaigns</h3>
-              <p className="text-xs text-text-muted mt-0.5">Progression status of your outreach runs</p>
+      {/* ── Recent Campaigns & Quick Actions ── */}
+      <div>
+        <div className="flex items-center gap-4 mb-4">
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
+            // SECTION: Operations
+          </span>
+          <div className="flex-1 border-t border-border" />
+          <span className="inline-block h-2 w-2 bg-[#ea580c] animate-blink" />
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
+            03
+          </span>
+        </div>
+
+        <div className="grid lg:grid-cols-12 gap-4">
+          {/* Recent Campaigns */}
+          <div className="lg:col-span-8 border-2 border-border bg-card p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-foreground">
+                  Campaign Log
+                </h3>
+                <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                  Recent outreach run progression
+                </p>
+              </div>
+              <Link href="/dashboard/history" className="text-[10px] font-mono font-bold text-[#ea580c] hover:text-[#ea580c]/80 uppercase tracking-widest inline-flex items-center gap-1">
+                View All <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-            <Link href="/dashboard/history" className="text-xs font-semibold text-accent-primary hover:text-accent-primary-hover inline-flex items-center gap-1">
-              View All <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border-default/60 text-[10px] font-semibold uppercase tracking-wider text-text-muted pb-3">
-                  <th className="pb-3 text-left">Campaign Name</th>
-                  <th className="pb-3 text-left">Progress</th>
-                  <th className="pb-3 text-left">Status</th>
-                  <th className="pb-3 pr-2 text-right">Inspect</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-default/40 text-xs">
-                {data?.recentCampaigns && data.recentCampaigns.length > 0 ? (
-                  data.recentCampaigns.map((camp) => {
-                    const statusColors = {
-                      DRAFT: "text-text-muted bg-bg-elevated border-border-default/40",
-                      GENERATING: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-                      READY: "text-green-400 bg-green-500/10 border-green-500/20",
-                      SENDING: "text-orange-400 bg-orange-500/10 border-orange-500/20",
-                      COMPLETED: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20",
-                      FAILED: "text-red-400 bg-red-500/10 border-red-500/20",
-                    } as Record<string, string>;
-
-                    const progressPercent = Math.min(
-                      100,
-                      (camp.sentCount / (camp.leadsCount || 1)) * 100
-                    );
-
-                    return (
-                      <tr key={camp._id} className="hover:bg-bg-elevated/20 transition-colors group">
-                        <td className="py-3.5 pr-2">
-                          <p className="font-bold text-text-primary group-hover:text-accent-primary transition-colors">
-                            {camp.name}
-                          </p>
-                          <p className="text-[10px] text-text-muted font-mono mt-0.5">
-                            {new Date(camp.createdAt).toLocaleDateString()}
-                          </p>
-                        </td>
-                        <td className="py-3.5 pr-2 font-medium">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[10px] text-text-muted">
-                              <span>{camp.sentCount} / {camp.leadsCount} sent</span>
-                              <span>{Math.round(progressPercent)}%</span>
-                            </div>
-                            <div className="w-32 bg-bg-elevated border border-border-default/60 rounded-full h-1.5 overflow-hidden">
-                              <div
-                                className="bg-accent-primary h-full rounded-full transition-all duration-500"
-                                style={{ width: `${progressPercent}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3.5 pr-2">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border ${statusColors[camp.status] || "text-text-muted"}`}>
-                            {camp.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 pr-2 text-right">
-                          <Link
-                            href={`/dashboard/history/${camp._id}`}
-                            className="p-1.5 rounded-lg text-text-muted hover:text-accent-primary hover:bg-accent-dim inline-flex items-center justify-center transition-colors"
-                          >
-                            <ArrowUpRight className="w-4 h-4" />
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="text-center py-8 text-text-muted">
-                      No campaigns created yet. Click New Campaign below to begin!
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse font-mono">
+                <thead>
+                  <tr className="border-b-2 border-border text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
+                    <th className="pb-3 text-left">Campaign</th>
+                    <th className="pb-3 text-left">Progress</th>
+                    <th className="pb-3 text-left">Status</th>
+                    <th className="pb-3 pr-2 text-right">→</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border/40 text-xs">
+                  {data?.recentCampaigns && data.recentCampaigns.length > 0 ? (
+                    data.recentCampaigns.map((camp) => {
+                      const statusStyles = {
+                        DRAFT: "text-muted-foreground border-border bg-muted/30",
+                        GENERATING: "text-blue-400 border-blue-400/30 bg-blue-400/5",
+                        READY: "text-emerald-400 border-emerald-400/30 bg-emerald-400/5",
+                        SENDING: "text-[#ea580c] border-[#ea580c]/30 bg-[#ea580c]/5",
+                        COMPLETED: "text-indigo-400 border-indigo-400/30 bg-indigo-400/5",
+                        FAILED: "text-red-400 border-red-400/30 bg-red-400/5",
+                      } as Record<string, string>;
+
+                      const progressPercent = Math.min(
+                        100,
+                        (camp.sentCount / (camp.leadsCount || 1)) * 100
+                      );
+
+                      return (
+                        <tr key={camp._id} className="hover:bg-foreground/[0.02] transition-colors group">
+                          <td className="py-3.5 pr-4">
+                            <p className="font-bold text-foreground group-hover:text-[#ea580c] transition-colors">
+                              {camp.name}
+                            </p>
+                            <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider">
+                              {new Date(camp.createdAt).toLocaleDateString()}
+                            </p>
+                          </td>
+                          <td className="py-3.5 pr-4">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-[9px] text-muted-foreground tracking-wider">
+                                <span>{camp.sentCount}/{camp.leadsCount}</span>
+                                <span>{Math.round(progressPercent)}%</span>
+                              </div>
+                              <div className="w-28 bg-muted/30 border border-border h-1.5 overflow-hidden">
+                                <div
+                                  className="bg-[#ea580c] h-full transition-all duration-500"
+                                  style={{ width: `${progressPercent}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 pr-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.15em] border ${statusStyles[camp.status] || "text-muted-foreground"}`}>
+                              {camp.status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 pr-2 text-right">
+                            <Link
+                              href={`/dashboard/history/${camp._id}`}
+                              className="p-1.5 text-muted-foreground hover:text-[#ea580c] inline-flex items-center justify-center transition-colors"
+                            >
+                              <ArrowUpRight className="w-4 h-4" />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="text-center py-10 text-muted-foreground text-[10px] uppercase tracking-widest">
+                        No campaigns created. Launch your first outreach below.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
 
-        {/* Quick Links Sidebar (Right/Minor) */}
-        <div className="lg:col-span-4 space-y-4">
-          <h3 className="text-base font-bold px-1">Quick Outbound Actions</h3>
+          {/* Quick Actions */}
+          <div className="lg:col-span-4 space-y-3">
+            <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-foreground px-1 mb-1">
+              Quick Actions
+            </h3>
 
-          <Link
-            href="/dashboard/campaign/new"
-            className="flex items-center justify-between p-5 rounded-3xl border border-border-default bg-bg-surface hover:border-accent-primary/45 hover:bg-bg-elevated transition-all group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-2xl bg-accent-dim flex items-center justify-center border border-accent-primary/20 text-accent-primary group-hover:scale-105 transition-transform">
-                <Sparkles className="w-5 h-5" />
+            <Link
+              href="/dashboard/campaign/new"
+              className="flex items-center justify-between p-4 border-2 border-border bg-card hover:border-[#ea580c]/40 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 border-2 border-[#ea580c]/30 bg-[#ea580c]/5 flex items-center justify-center text-[#ea580c] group-hover:bg-[#ea580c] group-hover:text-background transition-all">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <p className="font-mono font-bold text-xs text-foreground group-hover:text-[#ea580c] transition-colors uppercase tracking-wider">
+                    New Campaign
+                  </p>
+                  <p className="text-[9px] font-mono text-muted-foreground mt-0.5 tracking-wider">
+                    Upload leads, gen emails
+                  </p>
+                </div>
               </div>
-              <div className="text-left">
-                <p className="font-bold text-sm text-text-primary group-hover:text-accent-primary transition-colors">New Campaign</p>
-                <p className="text-[10px] text-text-muted mt-0.5">Upload leads, write custom emails</p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-accent-primary group-hover:translate-x-0.5 transition-all" />
-          </Link>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-[#ea580c] group-hover:translate-x-0.5 transition-all" />
+            </Link>
 
-          <Link
-            href="/dashboard/inbox"
-            className="flex items-center justify-between p-5 rounded-3xl border border-border-default bg-bg-surface hover:border-info/45 hover:bg-bg-elevated transition-all group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-2xl bg-info-dim flex items-center justify-center border border-info/20 text-info group-hover:scale-105 transition-transform">
-                <Mail className="w-5 h-5" />
+            <Link
+              href="/dashboard/inbox"
+              className="flex items-center justify-between p-4 border-2 border-border bg-card hover:border-foreground/20 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 border-2 border-foreground/15 bg-foreground/5 flex items-center justify-center text-foreground/60 group-hover:bg-foreground group-hover:text-background transition-all">
+                  <Inbox className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <p className="font-mono font-bold text-xs text-foreground group-hover:text-foreground/80 transition-colors uppercase tracking-wider">
+                    Inbox
+                  </p>
+                  <p className="text-[9px] font-mono text-muted-foreground mt-0.5 tracking-wider">
+                    IMAP sync &amp; replies
+                  </p>
+                </div>
               </div>
-              <div className="text-left">
-                <p className="font-bold text-sm text-text-primary group-hover:text-info transition-colors">Inbox & Replies</p>
-                <p className="text-[10px] text-text-muted mt-0.5">Track IMAP synchronization and responses</p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-info group-hover:translate-x-0.5 transition-all" />
-          </Link>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+            </Link>
 
-          <Link
-            href="/dashboard/settings"
-            className="flex items-center justify-between p-5 rounded-3xl border border-border-default bg-bg-surface hover:border-warning/45 hover:bg-bg-elevated transition-all group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-2xl bg-warning-dim flex items-center justify-center border border-warning/20 text-warning group-hover:scale-105 transition-transform">
-                <Settings className="w-5 h-5" />
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center justify-between p-4 border-2 border-border bg-card hover:border-[#FBBF24]/30 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 border-2 border-[#FBBF24]/20 bg-[#FBBF24]/5 flex items-center justify-center text-[#FBBF24] group-hover:bg-[#FBBF24] group-hover:text-black transition-all">
+                  <Settings className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <p className="font-mono font-bold text-xs text-foreground group-hover:text-[#FBBF24] transition-colors uppercase tracking-wider">
+                    Settings
+                  </p>
+                  <p className="text-[9px] font-mono text-muted-foreground mt-0.5 tracking-wider">
+                    SMTP &amp; resume config
+                  </p>
+                </div>
               </div>
-              <div className="text-left">
-                <p className="font-bold text-sm text-text-primary group-hover:text-warning transition-colors">Outbound Settings</p>
-                <p className="text-[10px] text-text-muted mt-0.5">Gmail SMTP and resume configuration</p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-warning group-hover:translate-x-0.5 transition-all" />
-          </Link>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-[#FBBF24] group-hover:translate-x-0.5 transition-all" />
+            </Link>
+          </div>
         </div>
       </div>
     </div>
@@ -503,7 +614,7 @@ function EmailTrendBarChart({ stats }: { stats: Array<{ date: string; sent: numb
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full text-text-muted font-mono select-none">
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full font-mono select-none">
       {/* Grid lines & Y-axis labels */}
       {gridLines.map((gl, index) => {
         const y = pt + chartHeight * (1 - gl);
@@ -511,7 +622,7 @@ function EmailTrendBarChart({ stats }: { stats: Array<{ date: string; sent: numb
         return (
           <g key={index} className="opacity-40">
             <line x1={pl} y1={y} x2={width - pr} y2={y} stroke="var(--border-default)" strokeWidth="1" strokeDasharray="4 4" />
-            <text x={pl - 8} y={y + 4} textAnchor="end" className="text-[9px] fill-text-muted font-semibold">{val}</text>
+            <text x={pl - 8} y={y + 4} textAnchor="end" className="text-[9px] fill-muted-foreground font-bold">{val}</text>
           </g>
         );
       })}
@@ -530,28 +641,28 @@ function EmailTrendBarChart({ stats }: { stats: Array<{ date: string; sent: numb
 
         return (
           <g key={i}>
-            {/* Sent bar (Green/Delivered) */}
+            {/* Sent bar */}
             {d.sent > 0 && (
               <rect
                 x={xSent}
                 y={ySent}
                 width={barWidth}
                 height={sentHeight}
-                rx={Math.min(2, barWidth / 2)}
-                className="fill-green-400 hover:fill-green-300 transition-colors cursor-pointer"
+                rx={0}
+                className="fill-emerald-400 hover:fill-emerald-300 transition-colors cursor-pointer"
               >
                 <title>{`Delivered: ${d.sent}`}</title>
               </rect>
             )}
 
-            {/* Failed bar (Red/Failed) */}
+            {/* Failed bar */}
             {d.failed > 0 && (
               <rect
                 x={xFailed}
                 y={yFailed}
                 width={barWidth}
                 height={failedHeight}
-                rx={Math.min(2, barWidth / 2)}
+                rx={0}
                 className="fill-red-400 hover:fill-red-300 transition-colors cursor-pointer"
               >
                 <title>{`Failed/Bounced: ${d.failed}`}</title>
@@ -560,7 +671,7 @@ function EmailTrendBarChart({ stats }: { stats: Array<{ date: string; sent: numb
 
             {/* X-axis date labels */}
             {(n <= 10 || i % Math.floor(n / 6) === 0) && (
-              <text x={xCenter} y={height - 4} textAnchor="middle" className="text-[9px] fill-text-muted font-semibold">
+              <text x={xCenter} y={height - 4} textAnchor="middle" className="text-[9px] fill-muted-foreground font-bold">
                 {d.date}
               </text>
             )}
@@ -573,7 +684,7 @@ function EmailTrendBarChart({ stats }: { stats: Array<{ date: string; sent: numb
 
 function EmailStatusDonutChart({ emails }: { emails: any }) {
   const segments = [
-    { label: "Sent", count: emails.sent ?? 0, color: "stroke-green-400" },
+    { label: "Sent", count: emails.sent ?? 0, color: "stroke-emerald-400" },
     { label: "Replied", count: emails.replied ?? 0, color: "stroke-indigo-400" },
     { label: "Bounced", count: emails.bounced ?? 0, color: "stroke-amber-400" },
     { label: "Failed", count: emails.failed ?? 0, color: "stroke-red-400" },
@@ -597,12 +708,14 @@ function EmailStatusDonutChart({ emails }: { emails: any }) {
   });
 
   return (
-    <div className="relative w-36 h-36 flex items-center justify-center">
+    <div className="relative w-32 h-32 flex items-center justify-center">
       <svg viewBox="0 0 100 100" className="w-full h-full transform select-none">
-        <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border-default)" strokeWidth="12" />
+        {/* Base ring */}
+        <rect x="10" y="10" width="80" height="80" fill="transparent" stroke="var(--border-default)" strokeWidth="1" />
+        <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border-default)" strokeWidth="10" />
 
         {isNoData ? (
-          <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border-subtle)" strokeWidth="12" />
+          <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border)" strokeWidth="10" />
         ) : (
           processedSegments.map((s, i) => (
             s.count > 0 && (
@@ -613,7 +726,7 @@ function EmailStatusDonutChart({ emails }: { emails: any }) {
                 r="40"
                 fill="transparent"
                 className={`${s.color} transition-all duration-500`}
-                strokeWidth="12"
+                strokeWidth="10"
                 strokeDasharray={s.strokeDasharray}
                 strokeDashoffset={s.strokeDashoffset}
                 transform="rotate(-90 50 50)"
@@ -623,8 +736,12 @@ function EmailStatusDonutChart({ emails }: { emails: any }) {
         )}
       </svg>
       <div className="absolute text-center">
-        <p className="text-xl font-black text-text-primary tracking-tight">{isNoData ? "0" : totalCounts.toLocaleString()}</p>
-        <p className="text-[9px] text-text-muted font-bold uppercase tracking-wider mt-0.5">Total Emails</p>
+        <p className="font-pixel text-lg text-foreground tracking-tight">
+          {isNoData ? "0" : totalCounts.toLocaleString()}
+        </p>
+        <p className="text-[8px] text-muted-foreground font-mono font-bold uppercase tracking-[0.15em] mt-0.5">
+          Total
+        </p>
       </div>
     </div>
   );

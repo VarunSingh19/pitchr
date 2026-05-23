@@ -70,8 +70,8 @@ export function ModelSelector() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-text-muted">
-        <Loader2 className="w-5 h-5 animate-spin" />
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin text-[#ea580c]" />
       </div>
     );
   }
@@ -91,41 +91,40 @@ export function ModelSelector() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-mono">
       <div>
-        <h2 className="text-lg font-semibold">Model Selection</h2>
-        <p className="text-sm text-text-muted">
-          Choose the AI model for email generation. Available models are
-          managed by the system administrator.
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">Model Selection</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Choose the default LLM generator. Available models are controlled by administrator telemetry.
         </p>
       </div>
 
       {availableModels.length === 0 ? (
-        <div className="rounded-2xl border border-warning/20 bg-warning-dim p-5 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-warning flex-shrink-0" />
+        <div className="border-2 border-[#FBBF24]/30 bg-[#FBBF24]/5 p-5 flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-[#FBBF24] flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-warning">No models available</p>
-            <p className="text-xs text-text-muted mt-0.5">
-              The system administrator hasn&apos;t configured any AI keys yet. Please check back later.
+            <p className="text-xs font-bold text-[#FBBF24] uppercase tracking-wider">No models available</p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Admin has not configured any AI providers yet. Check back shortly.
             </p>
           </div>
         </div>
       ) : (
         Array.from(providers.entries()).map(([provider, models]) => (
-          <div key={provider} className="space-y-2">
+          <div key={provider} className="space-y-3">
             {/* Provider header */}
             <div className="flex items-center gap-2">
               <ProviderBadge provider={provider} />
-              <span className="text-sm font-semibold text-text-primary">
+              <span className="text-xs font-bold text-foreground uppercase tracking-wider">
                 {providerNames[provider]}
               </span>
-              <span className="px-2 py-0.5 rounded-md bg-success-dim text-success text-[10px] font-semibold uppercase tracking-wider">
-                Available
+              <span className="px-2 py-0.5 border border-emerald-400/20 bg-emerald-400/5 text-emerald-400 text-[8px] font-bold uppercase tracking-widest">
+                Active
               </span>
             </div>
 
             {/* Model cards */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {models.map((model) => {
                 const isSelected = selectedModel === model.id;
 
@@ -134,31 +133,31 @@ export function ModelSelector() {
                     key={model.id}
                     onClick={() => handleSelect(model.id)}
                     className={cn(
-                      "w-full flex items-center justify-between px-5 py-3.5 rounded-2xl border transition-all text-left",
+                      "w-full flex items-center justify-between px-5 py-4 border-2 transition-all text-left rounded-none",
                       isSelected
-                        ? "border-accent-primary bg-accent-dim"
-                        : "border-border-default bg-bg-surface hover:bg-bg-elevated hover:border-border-subtle cursor-pointer"
+                        ? "border-[#ea580c] bg-[#ea580c]/5"
+                        : "border-border bg-card hover:bg-foreground/5 hover:border-foreground/20 cursor-pointer"
                     )}
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">
+                        <span className="text-xs font-bold text-foreground uppercase tracking-wider">
                           {model.name}
                         </span>
                       </div>
-                      <p className="text-xs text-text-muted mt-0.5">
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
                         {model.description}
                       </p>
-                      <p className="text-[11px] text-text-faint font-mono mt-0.5">
+                      <p className="text-[9px] text-[#ea580c] mt-1 font-bold">
                         {model.id}
                       </p>
                     </div>
                     {isSelected && (
                       <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                         {saving ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-accent-primary" />
+                          <Loader2 className="w-4 h-4 animate-spin text-[#ea580c]" />
                         ) : (
-                          <CheckCircle2 className="w-5 h-5 text-accent-primary" />
+                          <CheckCircle2 className="w-4 h-4 text-[#ea580c]" />
                         )}
                       </div>
                     )}
@@ -177,10 +176,10 @@ function ProviderBadge({ provider }: { provider: ProviderType }) {
   return (
     <span
       className={cn(
-        "w-2 h-2 rounded-full",
+        "w-2.5 h-2.5 inline-block",
         provider === "gemini" && "bg-blue-400",
-        provider === "nvidia" && "bg-green-400",
-        provider === "claude" && "bg-orange-400"
+        provider === "nvidia" && "bg-emerald-400",
+        provider === "claude" && "bg-[#ea580c]"
       )}
     />
   );

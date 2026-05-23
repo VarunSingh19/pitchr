@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Loader2, CheckCircle2, AlertCircle, FileText, Upload, Trash2, File as FileIcon } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, FileText, Upload, Trash2, File as FileIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function ResumeSettings() {
@@ -11,6 +11,7 @@ export function ResumeSettings() {
   const [savedResume, setSavedResume] = useState<{ fileName: string } | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -69,11 +70,10 @@ export function ResumeSettings() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete your saved resume?")) return;
-
     setDeleting(true);
     setError("");
     setSuccess("");
+    setShowConfirmDelete(false);
 
     try {
       const res = await fetch("/api/user/resume", { method: "DELETE" });
@@ -91,63 +91,94 @@ export function ResumeSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-text-muted">
-        <Loader2 className="w-5 h-5 animate-spin" />
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin text-[#ea580c]" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-mono">
       <div>
-        <h2 className="text-lg font-semibold">Resume Configuration</h2>
-        <p className="text-sm text-text-muted">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">Resume Configuration</h2>
+        <p className="text-xs text-muted-foreground mt-1">
           Upload your base resume here so you don't have to provide it for every campaign.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border-default bg-bg-surface p-6 space-y-5">
+      <div className="border-2 border-border bg-card p-6 space-y-5 rounded-none">
         {/* Error/Success messages */}
         {error && (
-          <div className="flex items-center gap-2 text-sm text-error bg-error-dim px-4 py-3 rounded-xl border border-error/20">
+          <div className="flex items-center gap-2 text-xs text-red-400 font-bold uppercase tracking-wider border-2 border-red-500/30 bg-red-500/5 px-4 py-3">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             {error}
           </div>
         )}
         {success && (
-          <div className="flex items-center gap-2 text-sm text-success bg-success-dim px-4 py-3 rounded-xl border border-success/20">
+          <div className="flex items-center gap-2 text-xs text-emerald-400 font-bold uppercase tracking-wider border-2 border-emerald-500/30 bg-emerald-400/5 px-4 py-3">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             {success}
           </div>
         )}
 
+        {/* Custom Confirmation Modal overlay (instead of window.confirm) */}
+        {showConfirmDelete && (
+          <div className="border-2 border-red-500 bg-red-500/5 p-4 space-y-3">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-red-400 uppercase tracking-wider">Confirm Resume Deletion</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                  Are you absolutely sure you want to delete your saved resume? This cannot be undone and will require uploading it again for future campaigns.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowConfirmDelete(false)}
+                className="px-4 py-2 border border-border hover:bg-foreground/5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider cursor-pointer"
+              >
+                Delete File
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Existing Resume Display */}
         {savedResume ? (
-          <div className="flex items-center justify-between p-4 rounded-xl border border-border-default bg-bg-elevated">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-2 border-border bg-foreground/[0.02]">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-accent-dim text-accent-primary flex items-center justify-center">
+              <div className="w-10 h-10 border-2 border-[#ea580c]/30 bg-[#ea580c]/5 text-[#ea580c] flex items-center justify-center rounded-none">
                 <FileText className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-medium text-text-primary">
+                <p className="text-xs font-bold text-foreground">
                   {savedResume.fileName}
                 </p>
-                <p className="text-xs text-text-muted">Currently active for new campaigns</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Currently active for new campaigns</p>
               </div>
             </div>
             
             <button
-              onClick={handleDelete}
+              onClick={() => setShowConfirmDelete(true)}
               disabled={deleting}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-error hover:bg-error-dim rounded-lg transition-colors disabled:opacity-50"
+              className="mt-3 sm:mt-0 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-border text-xs font-bold uppercase tracking-widest text-red-400 hover:border-red-400 hover:bg-red-400/5 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              Delete
+              Delete Resume
             </button>
           </div>
         ) : (
-          <div className="border-2 border-dashed border-border-default rounded-xl p-8 flex flex-col items-center justify-center text-center bg-bg-elevated hover:bg-bg-subtle transition-colors relative cursor-pointer"
-               onClick={() => fileInputRef.current?.click()}>
+          <div
+            className="border-2 border-dashed border-border p-8 flex flex-col items-center justify-center text-center bg-foreground/[0.01] hover:bg-foreground/[0.03] transition-colors relative cursor-pointer"
+            onClick={() => fileInputRef.current?.click()}
+          >
              <input
                 ref={fileInputRef}
                 type="file"
@@ -155,29 +186,29 @@ export function ResumeSettings() {
                 className="hidden"
                 onChange={handleFileUpload}
              />
-             <div className="w-12 h-12 rounded-full bg-accent-dim flex items-center justify-center mb-3">
+             <div className="w-12 h-12 border-2 border-[#ea580c]/30 bg-[#ea580c]/5 flex items-center justify-center mb-3">
                {uploading ? (
-                 <Loader2 className="w-6 h-6 text-accent-primary animate-spin" />
+                 <Loader2 className="w-5 h-5 text-[#ea580c] animate-spin" />
                ) : (
-                 <Upload className="w-6 h-6 text-accent-primary" />
+                 <Upload className="w-5 h-5 text-[#ea580c]" />
                )}
              </div>
-             <p className="text-sm font-medium text-text-primary mb-1">
-               {uploading ? "Uploading..." : "Click to upload your Resume (PDF)"}
+             <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-1">
+               {uploading ? "Uploading Document..." : "Click to upload Resume (PDF)"}
              </p>
-             <p className="text-xs text-text-muted">
-               Max 5MB. Must be a text-parseable PDF.
+             <p className="text-[10px] text-muted-foreground">
+               Max size 5MB. Must be a parseable text document.
              </p>
           </div>
         )}
 
         {/* Action Buttons for Replace */}
-        {savedResume && (
+        {savedResume && !showConfirmDelete && (
           <div className="flex justify-end">
              <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-bg-subtle hover:bg-bg-elevated border border-border-default text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-5 py-3 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest transition-colors cursor-pointer bg-card"
              >
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileIcon className="w-4 h-4" />}
                 Replace File

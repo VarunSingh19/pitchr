@@ -24,11 +24,11 @@ interface SendProgressProps {
 }
 
 const STATUS_ICONS = {
-  queued: { icon: Clock, color: "text-text-faint", label: "Queued" },
-  sending: { icon: Loader2, color: "text-accent-primary", label: "Sending" },
-  sent: { icon: CheckCircle2, color: "text-success", label: "Sent" },
-  failed: { icon: AlertCircle, color: "text-error", label: "Failed" },
-  skipped: { icon: XCircle, color: "text-warning", label: "Skipped" },
+  queued: { icon: Clock, color: "text-muted-foreground", label: "Queued" },
+  sending: { icon: Loader2, color: "text-[#ea580c]", label: "Sending" },
+  sent: { icon: CheckCircle2, color: "text-emerald-400", label: "Sent" },
+  failed: { icon: AlertCircle, color: "text-red-400", label: "Failed" },
+  skipped: { icon: XCircle, color: "text-amber-500", label: "Skipped" },
 } as const;
 
 export function SendProgress({
@@ -75,98 +75,92 @@ export function SendProgress({
   );
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in font-mono text-xs text-foreground">
       {/* Header */}
-      <div className="text-center">
+      <div className="text-center py-10 border-2 border-border bg-card rounded-none">
         {isComplete ? (
-          <>
-            <div className="w-16 h-16 rounded-2xl bg-success-dim flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-success" />
+          <div className="space-y-4">
+            <div className="w-12 h-12 border-2 border-emerald-400 bg-emerald-400/5 flex items-center justify-center mx-auto text-emerald-400 rounded-none">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl font-bold mb-1">Batch Complete</h2>
-            <p className="text-text-secondary text-sm">
-              {sentCount} of {total} emails sent successfully.
-              {failedCount > 0 && ` ${failedCount} failed.`}
+            <h2 className="text-sm font-bold uppercase tracking-wider">Outbox Transmission Complete</h2>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+              Processed {sentCount} of {total} batch dispatches successfully.
+              {failedCount > 0 && ` ${failedCount} faults detected.`}
             </p>
             {countdown !== null && countdown > 0 && (
-              <div className="flex items-center justify-center gap-2 mt-3 text-xs text-text-muted">
+              <div className="flex items-center justify-center gap-2 mt-4 text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
                 <Timer className="w-3.5 h-3.5" />
-                Starting new campaign in {countdown}s...
+                Cycling system memory in {countdown}s...
                 <button
                   onClick={onReset}
-                  className="text-accent-primary hover:text-accent-primary-hover underline ml-1"
+                  className="text-[#ea580c] hover:underline ml-1 cursor-pointer bg-transparent border-0 font-bold"
                 >
                   Reset now
                 </button>
               </div>
             )}
-          </>
+          </div>
         ) : (
-          <>
-            <div className="w-16 h-16 rounded-2xl bg-accent-dim flex items-center justify-center mx-auto mb-4">
-              <Send className="w-8 h-8 text-accent-primary animate-pulse" />
+          <div className="space-y-4">
+            <div className="w-12 h-12 border-2 border-[#ea580c]/30 bg-[#ea580c]/5 flex items-center justify-center mx-auto text-[#ea580c] rounded-none">
+              <Send className="w-5 h-5 animate-pulse" />
             </div>
-            <h2 className="text-2xl font-bold mb-1">Sending Emails</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider">Dispatching Emails</h2>
             {currentCompany && (
-              <p className="text-text-secondary text-sm">
-                Sending to{" "}
-                <span className="text-text-primary font-medium">
-                  {currentCompany.company}
-                </span>{" "}
-                — {currentCompany.role}
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto truncate uppercase tracking-wider">
+                Target: <span className="text-foreground font-bold">{currentCompany.company}</span>
               </p>
             )}
-          </>
+          </div>
         )}
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
-        <div className="rounded-xl bg-bg-surface border border-border-default p-4 text-center">
-          <p className="text-2xl font-bold text-success">{sentCount}</p>
-          <p className="text-xs text-text-muted mt-1">Sent</p>
+        <div className="border-2 border-border bg-card p-4 text-center rounded-none">
+          <p className="font-pixel text-xl text-emerald-400">{sentCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-1.5 uppercase font-bold tracking-wider">Sent</p>
         </div>
-        <div className="rounded-xl bg-bg-surface border border-border-default p-4 text-center">
-          <p className="text-2xl font-bold text-accent-primary">{sendingCount}</p>
-          <p className="text-xs text-text-muted mt-1">Sending</p>
+        <div className="border-2 border-border bg-card p-4 text-center rounded-none">
+          <p className="font-pixel text-xl text-[#ea580c]">{sendingCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-1.5 uppercase font-bold tracking-wider">Active</p>
         </div>
-        <div className="rounded-xl bg-bg-surface border border-border-default p-4 text-center">
-          <p className="text-2xl font-bold text-error">{failedCount}</p>
-          <p className="text-xs text-text-muted mt-1">Failed</p>
+        <div className="border-2 border-border bg-card p-4 text-center rounded-none">
+          <p className="font-pixel text-xl text-red-400">{failedCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-1.5 uppercase font-bold tracking-wider">Failed</p>
         </div>
-        <div className="rounded-xl bg-bg-surface border border-border-default p-4 text-center">
-          <p className="text-2xl font-bold text-text-muted">{remaining}</p>
-          <p className="text-xs text-text-muted mt-1">Remaining</p>
+        <div className="border-2 border-border bg-card p-4 text-center rounded-none">
+          <p className="font-pixel text-xl text-muted-foreground">{remaining}</p>
+          <p className="text-[10px] text-muted-foreground mt-1.5 uppercase font-bold tracking-wider">Queue</p>
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="rounded-2xl border border-border-default bg-bg-surface p-5">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium">
+      <div className="border-2 border-border bg-card p-5 rounded-none">
+        <div className="flex items-center justify-between mb-3 text-[10px] font-bold uppercase tracking-wider">
+          <span>
             {completed} / {total} processed
           </span>
           {isSending && (
-            <span className="text-xs text-text-muted">{etaDisplay}</span>
+            <span className="text-muted-foreground">{etaDisplay}</span>
           )}
         </div>
 
-        <div className="w-full h-3 rounded-full bg-bg-base overflow-hidden">
+        <div className="w-full h-3 bg-muted/40 border border-border overflow-hidden">
           <div
-            className="h-full rounded-full transition-all duration-700 ease-out"
+            className="h-full transition-all duration-700 ease-out"
             style={{
               width: `${progress}%`,
-              background: `linear-gradient(90deg, var(--accent-primary) 0%, ${
-                failedCount > 0 ? "var(--state-error)" : "var(--state-success)"
-              } 100%)`,
+              backgroundColor: failedCount > 0 ? "var(--state-error)" : "var(--state-success)",
             }}
           />
         </div>
       </div>
 
       {/* Company list */}
-      <div className="rounded-2xl border border-border-default bg-bg-surface overflow-hidden">
-        <div className="max-h-[350px] overflow-y-auto divide-y divide-border-default">
+      <div className="border-2 border-border bg-card overflow-hidden rounded-none">
+        <div className="max-h-[300px] overflow-y-auto divide-y divide-border">
           {results.map((result) => {
             const config = STATUS_ICONS[result.status];
             const StatusIcon = config.icon;
@@ -174,30 +168,30 @@ export function SendProgress({
             return (
               <div
                 key={result.companyId}
-                className="flex items-center justify-between px-5 py-3"
+                className="flex items-center justify-between px-5 py-3.5 hover:bg-foreground/[0.01]"
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text-primary truncate">
+                <div className="flex-1 min-w-0 pr-4">
+                  <p className="font-bold text-foreground truncate uppercase tracking-wider">
                     {result.company}
                   </p>
-                  <p className="text-xs text-text-muted truncate">
+                  <p className="text-[10px] text-muted-foreground truncate mt-0.5">
                     {result.email}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3">
                   {result.error && (
-                    <span className="text-xs text-error max-w-[150px] truncate hidden sm:block">
+                    <span className="text-[10px] text-red-400 max-w-[150px] truncate hidden sm:block font-bold">
                       {result.error}
                     </span>
                   )}
                   <div className="flex items-center gap-1.5">
                     <StatusIcon
                       className={`w-3.5 h-3.5 ${config.color} ${
-                        result.status === "sending" ? "animate-spin" : ""
+                        result.status === "sending" ? "animate-spin animate-duration-1000" : ""
                       }`}
                     />
-                    <span className={`text-xs font-medium ${config.color}`}>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${config.color}`}>
                       {config.label}
                     </span>
                   </div>
@@ -213,14 +207,14 @@ export function SendProgress({
         <div className="flex items-center justify-center gap-4 pt-4">
           <button
             onClick={() => downloadCsv(results)}
-            className="px-5 py-2.5 rounded-xl border border-border-default hover:border-border-subtle text-sm font-medium text-text-secondary hover:text-text-primary transition-all flex items-center gap-2"
+            className="px-5 py-3 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest text-muted-foreground bg-card transition-all rounded-none cursor-pointer flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
             Download CSV Report
           </button>
           <button
             onClick={onReset}
-            className="px-5 py-2.5 rounded-xl bg-accent-primary hover:bg-accent-primary-hover text-white text-sm font-medium transition-all flex items-center gap-2"
+            className="px-6 py-3 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-all rounded-none cursor-pointer flex items-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
             Start New Batch

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2, Copy, X, AlertTriangle, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, Settings, Trash2, Copy, X, AlertTriangle, Plus, Terminal } from "lucide-react";
 import type { Lead, GeneratedEmail, SendResult } from "@/lib/types";
 import { FileUpload } from "@/components/file-upload";
 import { CompanyTable } from "@/components/company-table";
@@ -15,9 +15,9 @@ type Step = "upload" | "generate" | "preview" | "send";
 
 const STEPS: { key: Step; label: string; num: number }[] = [
   { key: "upload", label: "Upload Leads", num: 1 },
-  { key: "generate", label: "Generate Emails", num: 2 },
+  { key: "generate", label: "Personalize", num: 2 },
   { key: "preview", label: "Review & Edit", num: 3 },
-  { key: "send", label: "Send", num: 4 },
+  { key: "send", label: "Send Outbox", num: 4 },
 ];
 
 interface PromptConfig {
@@ -63,7 +63,7 @@ export default function NewCampaignPage() {
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [sendComplete, setSendComplete] = useState(false);
-  const [useSavedResume, setUseSavedResume] = useState<boolean>(true); // NEW
+  const [useSavedResume, setUseSavedResume] = useState<boolean>(true);
   const [showPromptHelper, setShowPromptHelper] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -73,6 +73,10 @@ export default function NewCampaignPage() {
   const [invalidEmails, setInvalidEmails] = useState<Set<string>>(new Set());
   const [isVerifying, setIsVerifying] = useState(false);
   const [autoSend, setAutoSend] = useState(false);
+
+  // ── Custom Confirm States (UX improvements replacing window.confirm) ──
+  const [billingRedirectMessage, setBillingRedirectMessage] = useState<string | null>(null);
+  const [showDiscardDraftConfirm, setShowDiscardDraftConfirm] = useState(false);
 
   // ── Prompt Helper Wizard State ──
   const [wizardStep, setWizardStep] = useState<number>(0); // 0 = closed, 1-4 = steps
@@ -107,7 +111,6 @@ export default function NewCampaignPage() {
     }
     setWizardSaveDefault(false);
     
-    // Skip to final prompt screen if settings are already configured
     if (userConfig?.promptConfig?.hasConfigured) {
       setWizardStep(4);
       setIsEditingWizard(false);
@@ -116,7 +119,6 @@ export default function NewCampaignPage() {
       setIsEditingWizard(true);
     }
   }, [userConfig]);
-
 
   const addWizardTag = useCallback((
     input: string,
@@ -390,7 +392,7 @@ If any check fails → fix the affected records before outputting <final>.`;
     setCopiedPrompt(true);
     setTimeout(() => {
       setCopiedPrompt(false);
-      setWizardStep(0); // Close wizard
+      setWizardStep(0);
     }, 1500);
   }, [generateDynamicPromptText]);
 
@@ -439,7 +441,7 @@ If any check fails → fix the affected records before outputting <final>.`;
     setCopiedPrompt(true);
     setTimeout(() => {
       setCopiedPrompt(false);
-      setWizardStep(0); // Close wizard
+      setWizardStep(0);
     }, 1500);
   }, [
     wizardSaveDefault,
@@ -468,8 +470,6 @@ If any check fails → fix the affected records before outputting <final>.`;
     setEditingLead(null);
   }, []);
 
-
-
   // ── Mounted state for Portals ──
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -479,7 +479,7 @@ If any check fails → fix the affected records before outputting <final>.`;
 
   // ── Auto-save draft ──
   const hasMeaningfulData = leads.length > 0 || generatedEmails.length > 0;
-  const generationPausedAt: number | null = null; // Background generation via Inngest — no client-side pause tracking
+  const generationPausedAt: number | null = null;
 
   useAutoSaveDraft(
     currentStep,
@@ -501,11 +501,11 @@ If any check fails → fix the affected records before outputting <final>.`;
       setGeneratedEmails(draft.generatedEmails);
       setCurrentStep(draft.step === "send" ? "preview" : draft.step);
       setDraftRestored(true);
-      if (draft.resumeText) setUseSavedResume(false); // If draft had resume text, assume it wasn't the default saved resume or it doesn't matter
+      if (draft.resumeText) setUseSavedResume(false);
     }
   }, []);
 
-  // ── Load user config from Settings on mount ──
+  // ── Load user config on mount ──
   useEffect(() => {
     async function loadConfig() {
       try {
@@ -582,7 +582,7 @@ If any check fails → fix the affected records before outputting <final>.`;
         setInvalidEmails(new Set((data.invalidEmails || []).map((e: string) => e.toLowerCase())));
       }
     } catch {
-      // ignore — just won't show badges
+      // ignore
     } finally {
       setCheckingSent(false);
       setIsVerifying(false);
@@ -649,6 +649,8 @@ If any check fails → fix the affected records before outputting <final>.`;
     setUseSavedResume(true);
     setEditingLead(null);
     setDeletingLead(null);
+    setShowDiscardDraftConfirm(false);
+    setBillingRedirectMessage(null);
     clearDraft();
   }, []);
 
@@ -665,11 +667,9 @@ If any check fails → fix the affected records before outputting <final>.`;
           const data = await res.json();
           setPollingStatus(data);
 
-          // Auto-send flow: generation done → transition to send step, keep polling
           if (autoSend && data.generated + data.failed >= data.total && data.total > 0 && isGenerating) {
             setIsGenerating(false);
 
-            // Build send results from emailDetails
             if (data.emailDetails) {
               const results: SendResult[] = data.emailDetails.map((e: any) => ({
                 companyId: e.companyId,
@@ -687,7 +687,6 @@ If any check fails → fix the affected records before outputting <final>.`;
             setCurrentStep("send");
           }
 
-          // Auto-send: update send results from emailDetails during sending
           if (autoSend && isSending && data.emailDetails) {
             const results: SendResult[] = data.emailDetails.map((e: any) => ({
               companyId: e.companyId,
@@ -701,24 +700,20 @@ If any check fails → fix the affected records before outputting <final>.`;
             setSendResults(results);
           }
 
-          // Auto-send complete: campaign finished
           if (autoSend && (data.status === "COMPLETED" || data.status === "FAILED") && isSending) {
             setIsSending(false);
             setSendComplete(true);
             clearInterval(interval);
             clearDraft();
 
-            // Auto-reset after 8 seconds so user can see results briefly
             autoResetTimer = setTimeout(() => {
               handleReset();
             }, 8000);
           }
 
-          // Normal flow (no auto-send): stop polling when generation is done
           if (!autoSend && data.generated + data.failed >= data.total && data.total > 0) {
             setIsGenerating(false);
             clearInterval(interval);
-            // Fetch the final emails for preview
             const emailsRes = await fetch(`/api/campaigns/${campaignId}/emails`);
             if (emailsRes.ok) {
               const emails = await emailsRes.json();
@@ -741,7 +736,6 @@ If any check fails → fix the affected records before outputting <final>.`;
   const handleGenerate = useCallback(async () => {
     if (!userConfig) return;
 
-    // Silently skip invalid and already-sent emails
     const validLeads = leads.filter(l => 
       !invalidEmails.has(l.contact_email?.toLowerCase()) && 
       !alreadySent.has(l.contact_email?.toLowerCase())
@@ -749,12 +743,11 @@ If any check fails → fix the affected records before outputting <final>.`;
 
     const skippedCount = leads.length - validLeads.length;
     if (skippedCount > 0) {
-      // Using standard alert as toast replacement for now since no toast library is imported
-      alert(`${skippedCount} invalid or previously sent emails were skipped.`);
+      toast.info(`${skippedCount} invalid or contacted leads were skipped.`);
     }
 
     if (validLeads.length === 0) {
-      alert("No valid leads left to generate emails for.");
+      toast.error("No valid leads available to personalise.");
       return;
     }
 
@@ -762,7 +755,6 @@ If any check fails → fix the affected records before outputting <final>.`;
     setPollingStatus({ generated: 0, failed: 0, total: validLeads.length, status: "DRAFT" });
 
     try {
-      // 1. Create Campaign
       const createRes = await fetch("/api/campaigns/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -776,7 +768,6 @@ If any check fails → fix the affected records before outputting <final>.`;
       const cId = campaign._id;
       setCampaignId(cId);
 
-      // 2. Start Generation via Inngest
       const startRes = await fetch("/api/campaign/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -802,13 +793,8 @@ If any check fails → fix the affected records before outputting <final>.`;
         msg.toLowerCase().includes("plan") ||
         msg.toLowerCase().includes("limit")
       ) {
-        if (
-          confirm(
-            `${msg}\n\nWould you like to navigate to your Billing & Usage dashboard to upgrade your plan and increase limits?`
-          )
-        ) {
-          window.location.href = "/dashboard/billing";
-        }
+        // Trigger Custom Modal Confirmation (replacing window.confirm)
+        setBillingRedirectMessage(msg);
       } else {
         alert(msg);
       }
@@ -927,23 +913,23 @@ If any check fails → fix the affected records before outputting <final>.`;
 
     setIsSending(false);
     setSendComplete(true);
-    clearDraft(); // Campaign complete — clear the draft
+    clearDraft();
   }, [generatedEmails, userConfig, resumeFile, useSavedResume]);
 
-  // ── Discard draft ──
   const handleDiscardDraft = useCallback(() => {
-    if (confirm("Discard this saved campaign draft? This cannot be undone.")) {
-      handleReset();
-    }
+    setShowDiscardDraftConfirm(true);
+  }, []);
+
+  const confirmDiscardDraft = useCallback(() => {
+    handleReset();
   }, [handleReset]);
 
-  // ── Config status banner ──
   const renderConfigStatus = () => {
     if (configLoading) {
       return (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-bg-surface border border-border-default text-sm text-text-muted">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Loading your configuration...
+        <div className="flex items-center gap-2 px-4 py-3 border-2 border-border bg-card text-xs font-mono text-muted-foreground rounded-none">
+          <Loader2 className="w-4 h-4 animate-spin text-[#ea580c]" />
+          Verifying settings configuration...
         </div>
       );
     }
@@ -951,93 +937,98 @@ If any check fails → fix the affected records before outputting <final>.`;
     if (!userConfig) return null;
 
     const issues: string[] = [];
-    if (!userConfig.gmailConfigured) issues.push("Gmail not configured");
-    if (!userConfig.userName.trim()) issues.push("Name not set in your Google account");
+    if (!userConfig.gmailConfigured) issues.push("Gmail app password not saved");
+    if (!userConfig.userName.trim()) issues.push("Google account name is missing");
 
     if (issues.length === 0) {
       return (
-        <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-success-dim border border-success/20 text-sm">
-          <div className="flex items-center gap-2 text-success">
+        <div className="flex items-center justify-between px-4 py-3 border-2 border-emerald-400/30 bg-emerald-400/5 text-xs font-mono rounded-none">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-wider">
             <CheckCircle2 className="w-4 h-4" />
-            Ready — using {userConfig.gmailAddress} with Pitchr AI
+            Ready: active outbox routing via {userConfig.gmailAddress}
           </div>
         </div>
       );
     }
 
     return (
-      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm">
-        <div className="flex items-center gap-2 text-amber-400">
+      <div className="flex items-center justify-between px-4 py-3 border-2 border-amber-500/30 bg-amber-500/5 text-xs font-mono rounded-none">
+        <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{issues.join(" · ")}</span>
+          <span>Configuration Warning: {issues.join(" · ")}</span>
         </div>
-
       </div>
     );
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in font-mono text-xs">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold mb-1">New Campaign</h1>
-          <p className="text-text-secondary text-sm">
-            Generate and send personalized cold emails
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-2.5 h-2.5 bg-[#ea580c] animate-blink" />
+            <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+              // PIPELINE DISCOVERY
+            </span>
+          </div>
+          <h1 className="font-pixel text-3xl sm:text-4xl tracking-tight text-foreground">
+            LAUNCH CAMPAIGN
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1 tracking-wide">
+            Process targets, construct context-guided copy, and dispatch outreach
           </p>
         </div>
         <div className="flex items-center gap-3">
           {draftRestored && (
             <button
               onClick={handleDiscardDraft}
-              className="flex items-center gap-1.5 text-xs text-text-faint hover:text-error transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border bg-card text-muted-foreground hover:text-red-400 hover:border-red-400 transition-colors uppercase font-bold text-[10px] rounded-none cursor-pointer"
               title="Discard saved draft"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Discard Draft
             </button>
           )}
-
         </div>
       </div>
 
       {/* Draft restored banner */}
       {draftRestored && currentStep === "upload" && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-accent-dim border border-accent-primary/20 text-sm text-accent-primary animate-fade-in">
+        <div className="flex items-center gap-2 px-4 py-3 border-2 border-[#ea580c]/30 bg-[#ea580c]/5 text-[#ea580c] font-bold uppercase tracking-wider rounded-none animate-fade-in">
           <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-          Restored your previous campaign draft — pick up where you left off!
+          Restored previous campaign state from auto-save.
         </div>
       )}
 
       {/* Step indicators */}
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-2">
         {STEPS.map((step, idx) => {
           const stepIdx = STEPS.findIndex((s) => s.key === currentStep);
           const isActive = step.key === currentStep;
           const isCompleted = idx < stepIdx;
 
           return (
-            <div key={step.key} className="flex items-center">
+            <div key={step.key} className="flex items-center gap-2">
               {idx > 0 && (
                 <div
-                  className={`w-8 h-px mx-1 transition-colors ${isCompleted ? "bg-accent-primary" : "bg-border-default"
-                    }`}
+                  className={`w-4 h-px transition-colors hidden sm:block ${isCompleted ? "bg-[#ea580c]" : "bg-border"}`}
                 />
               )}
               <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isActive
-                  ? "bg-accent-dim text-accent-primary border border-accent-primary/30"
+                className={`flex items-center gap-2 px-3 py-2 border-2 uppercase font-bold text-[10px] tracking-wider rounded-none transition-all ${isActive
+                  ? "border-[#ea580c] bg-[#ea580c]/5 text-[#ea580c]"
                   : isCompleted
-                    ? "text-accent-primary"
-                    : "text-text-muted"
+                    ? "border-border text-foreground bg-foreground/5"
+                    : "border-border text-muted-foreground bg-card"
                   }`}
               >
                 <span
-                  className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold ${isActive
-                    ? "bg-accent-primary text-white"
+                  className={`w-4.5 h-4.5 flex items-center justify-center font-bold text-[9px] border ${isActive
+                    ? "border-[#ea580c] bg-[#ea580c] text-background"
                     : isCompleted
-                      ? "bg-accent-primary/20 text-accent-primary"
-                      : "bg-bg-elevated text-text-faint"
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-foreground/5 text-muted-foreground"
                     }`}
                 >
                   {step.num}
@@ -1059,35 +1050,35 @@ If any check fails → fix the affected records before outputting <final>.`;
               <FileUpload
                 type="json"
                 onJsonParsed={handleJsonUpload}
-                fileName={leads.length > 0 ? `${leads.length} companies loaded` : undefined}
+                fileName={leads.length > 0 ? `${leads.length} targets loaded` : undefined}
               />
               <button
                 onClick={openPromptWizard}
-                className="text-xs text-accent-primary hover:text-accent-primary-hover transition-colors text-left"
+                className="text-[10px] font-bold text-[#ea580c] hover:underline uppercase tracking-wider text-left bg-transparent border-0 cursor-pointer"
               >
-                Don&apos;t have a JSON? See prompt to generate one
+                Need target list JSON? Copy prompt schema wizard
                 {userConfig?.promptConfig?.hasConfigured && (
-                  <span className="block text-[10px] text-text-muted mt-0.5">Saved profile active — click to view prompt</span>
+                  <span className="block text-[9px] text-muted-foreground lowercase font-normal mt-0.5">saved parameters active — inspect template</span>
                 )}
               </button>
 
-              {/* Modal Overlay rendered via Portal */}
+              {/* Prompt Wizard Modal Overlay (Portal) */}
               {wizardStep > 0 && mounted && createPortal(
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fade-in">
-                  <div className="bg-bg-surface border border-border-default rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fade-in font-mono text-xs text-foreground">
+                  <div className="bg-card border-2 border-border rounded-none w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
                     {!isEditingWizard ? (
                       <>
                         {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-bg-elevated/50">
+                        <div className="flex items-center justify-between p-4 border-b-2 border-border bg-foreground/[0.02]">
                           <div>
-                            <h3 className="font-semibold text-text-primary">Outbound Lead Researcher Prompt</h3>
-                            <p className="text-xs text-text-muted">Copy the prompt below to generate your lead research JSON</p>
+                            <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">Lead Sourcing Prompt</h3>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-bold tracking-wide">Copy and execute inside ChatGPT/Claude to gather targets</p>
                           </div>
                           <button
                             onClick={() => setWizardStep(0)}
-                            className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-subtle transition-colors"
+                            className="p-1.5 border border-border bg-card text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors rounded-none cursor-pointer"
                           >
-                            <X className="w-5 h-5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
 
@@ -1095,39 +1086,39 @@ If any check fails → fix the affected records before outputting <final>.`;
                         <div className="p-6 flex-1 overflow-y-auto space-y-4">
                           <div className="space-y-4 animate-fade-in">
                             <div className="flex justify-between items-center">
-                              <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                                Final Outbound Researcher Prompt
+                              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                Target prompt output criteria
                               </label>
-                              <span className="text-[11px] text-accent-primary bg-accent-dim px-2.5 py-0.5 rounded-full border border-accent-primary/10">
-                                Tailored dynamically
+                              <span className="text-[9px] font-bold border border-[#ea580c]/30 bg-[#ea580c]/5 text-[#ea580c] px-2 py-0.5 uppercase tracking-wider rounded-none">
+                                Dynamic
                               </span>
                             </div>
 
-                            <pre className="text-xs text-text-primary leading-relaxed font-mono bg-black/40 p-4 rounded-xl border border-border-default whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
+                            <pre className="text-[11px] text-foreground leading-relaxed font-mono bg-foreground/[0.02] p-4 border-2 border-border whitespace-pre-wrap max-h-[50vh] overflow-y-auto rounded-none">
                               {generateDynamicPromptText()}
                             </pre>
                           </div>
                         </div>
 
                         {/* Footer Navigation */}
-                        <div className="p-4 border-t border-border-subtle bg-bg-elevated/50 flex justify-between items-center">
+                        <div className="p-4 border-t-2 border-border bg-foreground/[0.02] flex justify-between items-center">
                           <div>
                             <button
                               onClick={() => {
                                 setIsEditingWizard(true);
                                 setWizardStep(1);
                               }}
-                              className="px-4 py-2 rounded-lg bg-bg-elevated hover:bg-bg-subtle text-text-secondary border border-border-default text-sm font-medium transition-all flex items-center gap-1.5"
+                              className="px-4 py-2.5 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest text-muted-foreground bg-card transition-colors rounded-none cursor-pointer flex items-center gap-1.5"
                             >
                               <Settings className="w-4 h-4" />
-                              Edit Profile
+                              Configure Search
                             </button>
                           </div>
 
                           <div className="flex items-center gap-2">
                             <button
                               onClick={handleCopyPrompt}
-                              className="px-5 py-2 rounded-lg bg-accent-primary hover:bg-accent-primary-hover text-white text-sm font-medium transition-all flex items-center gap-1.5"
+                              className="px-5 py-3 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-colors rounded-none cursor-pointer flex items-center gap-2"
                             >
                               {copiedPrompt ? (
                                 <>
@@ -1137,7 +1128,7 @@ If any check fails → fix the affected records before outputting <final>.`;
                               ) : (
                                 <>
                                   <Copy className="w-4 h-4" />
-                                  Copy & Close
+                                  Copy &amp; Close
                                 </>
                               )}
                             </button>
@@ -1147,32 +1138,31 @@ If any check fails → fix the affected records before outputting <final>.`;
                     ) : (
                       <>
                         {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-bg-elevated/50">
+                        <div className="flex items-center justify-between p-4 border-b-2 border-border bg-foreground/[0.02]">
                           <div>
-                            <h3 className="font-semibold text-text-primary">Prompt Setup Wizard</h3>
-                            <p className="text-xs text-text-muted">Configure outbound lead researcher query template</p>
+                            <h3 className="font-bold text-sm uppercase tracking-wider text-foreground font-pixel">Search Criteria Wizard</h3>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-bold tracking-wide">Configure local search fields for lead agent</p>
                           </div>
                           <button
                             onClick={() => setWizardStep(0)}
-                            className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-subtle transition-colors"
+                            className="p-1.5 border border-border bg-card text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors rounded-none cursor-pointer"
                           >
-                            <X className="w-5 h-5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
 
                         {/* Wizard Progress Bar */}
-                        <div className="px-6 py-4 border-b border-border-subtle bg-bg-elevated/20 flex items-center justify-between gap-2">
+                        <div className="px-6 py-4 border-b border-border bg-foreground/[0.01] flex flex-wrap items-center gap-4">
                           {[
-                            { num: 1, label: "Location" },
-                            { num: 2, label: "Roles & Stack" },
-                            { num: 3, label: "Company" },
-                            { num: 4, label: "Review" }
+                            { num: 1, label: "Geography" },
+                            { num: 2, label: "Job Stack" },
+                            { num: 3, label: "Industries" },
+                            { num: 4, label: "Verify Prompt" }
                           ].map((item) => {
                             const isActive = item.num === wizardStep;
                             const isDone = item.num < wizardStep;
 
                             const handleStepJump = () => {
-                              // Auto add remaining tag inputs if moving away
                               if (wizardStep === 2) {
                                 if (wizardRolesInput.trim()) {
                                   addWizardTag(wizardRolesInput, setWizardRolesInput, wizardRoles, setWizardRoles);
@@ -1189,39 +1179,25 @@ If any check fails → fix the affected records before outputting <final>.`;
                             };
 
                             return (
-                              <div key={item.num} className="flex-1 flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={handleStepJump}
-                                  className="flex items-center gap-1.5 hover:opacity-85 transition-opacity text-left focus:outline-none cursor-pointer"
+                              <button
+                                key={item.num}
+                                type="button"
+                                onClick={handleStepJump}
+                                className={`flex items-center gap-1.5 hover:opacity-85 transition-opacity text-left cursor-pointer border-0 bg-transparent py-1 font-mono text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-[#ea580c]' : 'text-muted-foreground'}`}
+                              >
+                                <span
+                                  className={`w-5 h-5 border flex items-center justify-center text-[9px] font-bold transition-all rounded-none ${
+                                    isActive
+                                      ? "border-[#ea580c] bg-[#ea580c] text-background"
+                                      : isDone || wizardStep === 4
+                                        ? "border-foreground bg-foreground text-background"
+                                        : "border-border bg-card text-muted-foreground"
+                                  }`}
                                 >
-                                  <span
-                                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
-                                      isActive
-                                        ? "bg-accent-primary text-white"
-                                        : isDone || wizardStep === 4
-                                          ? "bg-accent-primary/20 text-accent-primary"
-                                          : "bg-bg-subtle text-text-muted border border-border-default"
-                                    }`}
-                                  >
-                                    {(isDone || (wizardStep === 4 && item.num < 4)) ? <CheckCircle2 className="w-3 h-3" /> : item.num}
-                                  </span>
-                                  <span
-                                    className={`text-xs font-medium hidden sm:inline ${
-                                      isActive ? "text-text-primary" : "text-text-muted"
-                                    }`}
-                                  >
-                                    {item.label}
-                                  </span>
-                                </button>
-                                {item.num < 4 && (
-                                  <div
-                                    className={`flex-1 h-px ml-2 ${
-                                      isDone || wizardStep === 4 ? "bg-accent-primary/40" : "bg-border-default"
-                                    }`}
-                                  />
-                                )}
-                              </div>
+                                  {(isDone || (wizardStep === 4 && item.num < 4)) ? <CheckCircle2 className="w-3 h-3" /> : item.num}
+                                </span>
+                                {item.label}
+                              </button>
                             );
                           })}
                         </div>
@@ -1230,8 +1206,8 @@ If any check fails → fix the affected records before outputting <final>.`;
                         <div className="p-6 flex-1 overflow-y-auto space-y-4">
                           {wizardStep === 1 && (
                             <div className="space-y-4 animate-fade-in">
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                   Target Geography Details
                                 </label>
                                 <textarea
@@ -1239,15 +1215,15 @@ If any check fails → fix the affected records before outputting <final>.`;
                                   onChange={(e) => setWizardGeography(e.target.value)}
                                   placeholder="e.g. Mumbai — specifically Malad and Andheri areas..."
                                   rows={4}
-                                  className="w-full px-4 py-3 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none resize-none"
+                                  className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none resize-none rounded-none"
                                 />
-                                <p className="text-[11px] text-text-muted">
-                                  Be specific about neighborhoods, corridors, or regions the search should prioritize.
+                                <p className="text-[10px] text-muted-foreground">
+                                  Be specific about neighborhoods, corridors, or regions.
                                 </p>
                               </div>
 
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                   Researcher Location Context
                                 </label>
                                 <input
@@ -1255,10 +1231,10 @@ If any check fails → fix the affected records before outputting <final>.`;
                                   value={wizardResearcherLocation}
                                   onChange={(e) => setWizardResearcherLocation(e.target.value)}
                                   placeholder="e.g. Mumbai, Maharashtra"
-                                  className="w-full px-4 py-3 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+                                  className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
                                 />
-                                <p className="text-[11px] text-text-muted">
-                                  Local context for queries (e.g. "Mumbai, Maharashtra" or "Bangalore, Karnataka").
+                                <p className="text-[10px] text-muted-foreground">
+                                  Local region reference context.
                                 </p>
                               </div>
                             </div>
@@ -1267,8 +1243,8 @@ If any check fails → fix the affected records before outputting <final>.`;
                           {wizardStep === 2 && (
                             <div className="space-y-5 animate-fade-in">
                               {/* Roles */}
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                   Target Job Roles
                                 </label>
                                 <div className="flex gap-2">
@@ -1278,28 +1254,28 @@ If any check fails → fix the affected records before outputting <final>.`;
                                     onChange={(e) => setWizardRolesInput(e.target.value)}
                                     onKeyDown={(e) => handleWizardKeyDown(e, wizardRolesInput, setWizardRolesInput, wizardRoles, setWizardRoles)}
                                     placeholder="Type role and press Enter or comma..."
-                                    className="flex-1 px-4 py-2.5 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+                                    className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => addWizardTag(wizardRolesInput, setWizardRolesInput, wizardRoles, setWizardRoles)}
-                                    className="px-4 py-2.5 bg-bg-elevated border border-border-default hover:bg-bg-subtle text-text-secondary rounded-xl text-sm font-medium transition-all flex items-center justify-center"
+                                    className="px-4 py-3 border-2 border-border hover:bg-foreground/5 text-muted-foreground hover:text-foreground font-bold flex items-center justify-center rounded-none cursor-pointer"
                                   >
                                     <Plus className="w-4 h-4" />
                                   </button>
                                 </div>
                                 {wizardRoles.length > 0 ? (
-                                  <div className="flex flex-wrap gap-2 mt-2 p-3 bg-bg-elevated/40 border border-border-default/40 rounded-xl">
+                                  <div className="flex flex-wrap gap-2 mt-2 p-3 bg-foreground/[0.02] border border-border rounded-none">
                                     {wizardRoles.map((tag) => (
                                       <span
                                         key={tag}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-dim text-accent-primary border border-accent-primary/20 text-xs font-medium"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#ea580c]/5 text-[#ea580c] border border-[#ea580c]/30 text-xs font-bold uppercase tracking-wider rounded-none"
                                       >
                                         {tag}
                                         <button
                                           type="button"
                                           onClick={() => removeWizardTag(tag, wizardRoles, setWizardRoles)}
-                                          className="p-0.5 rounded-full hover:bg-accent-primary/20 text-accent-primary transition-colors"
+                                          className="p-0.5 hover:bg-[#ea580c]/20 text-[#ea580c] transition-colors cursor-pointer"
                                         >
                                           <X className="w-3 h-3" />
                                         </button>
@@ -1307,14 +1283,14 @@ If any check fails → fix the affected records before outputting <final>.`;
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-xs text-text-faint italic">No roles added yet.</p>
+                                  <p className="text-[10px] text-muted-foreground italic">No roles added yet.</p>
                                 )}
                               </div>
 
                               {/* Skills / Tech Stack */}
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                                  Skills & Technologies
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                  Skills &amp; Technologies
                                 </label>
                                 <div className="flex gap-2">
                                   <input
@@ -1323,28 +1299,28 @@ If any check fails → fix the affected records before outputting <final>.`;
                                     onChange={(e) => setWizardStackInput(e.target.value)}
                                     onKeyDown={(e) => handleWizardKeyDown(e, wizardStackInput, setWizardStackInput, wizardStack, setWizardStack)}
                                     placeholder="Type skill and press Enter or comma..."
-                                    className="flex-1 px-4 py-2.5 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+                                    className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => addWizardTag(wizardStackInput, setWizardStackInput, wizardStack, setWizardStack)}
-                                    className="px-4 py-2.5 bg-bg-elevated border border-border-default hover:bg-bg-subtle text-text-secondary rounded-xl text-sm font-medium transition-all flex items-center justify-center"
+                                    className="px-4 py-3 border-2 border-border hover:bg-foreground/5 text-muted-foreground hover:text-foreground font-bold flex items-center justify-center rounded-none cursor-pointer"
                                   >
                                     <Plus className="w-4 h-4" />
                                   </button>
                                 </div>
                                 {wizardStack.length > 0 ? (
-                                  <div className="flex flex-wrap gap-2 mt-2 p-3 bg-bg-elevated/40 border border-border-default/40 rounded-xl">
+                                  <div className="flex flex-wrap gap-2 mt-2 p-3 bg-foreground/[0.02] border border-border rounded-none">
                                     {wizardStack.map((tag) => (
                                       <span
                                         key={tag}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-dim text-accent-primary border border-accent-primary/20 text-xs font-medium"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#ea580c]/5 text-[#ea580c] border border-[#ea580c]/30 text-xs font-bold uppercase tracking-wider rounded-none"
                                       >
                                         {tag}
                                         <button
                                           type="button"
                                           onClick={() => removeWizardTag(tag, wizardStack, setWizardStack)}
-                                          className="p-0.5 rounded-full hover:bg-accent-primary/20 text-accent-primary transition-colors"
+                                          className="p-0.5 hover:bg-[#ea580c]/20 text-[#ea580c] transition-colors cursor-pointer"
                                         >
                                           <X className="w-3 h-3" />
                                         </button>
@@ -1352,7 +1328,7 @@ If any check fails → fix the affected records before outputting <final>.`;
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-xs text-text-faint italic">No technologies added yet.</p>
+                                  <p className="text-[10px] text-muted-foreground italic">No technologies added yet.</p>
                                 )}
                               </div>
                             </div>
@@ -1361,8 +1337,8 @@ If any check fails → fix the affected records before outputting <final>.`;
                           {wizardStep === 3 && (
                             <div className="space-y-5 animate-fade-in">
                               {/* Company Types */}
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                   Target Company Types
                                 </label>
                                 <div className="flex gap-2">
@@ -1372,28 +1348,28 @@ If any check fails → fix the affected records before outputting <final>.`;
                                     onChange={(e) => setWizardCompanyInput(e.target.value)}
                                     onKeyDown={(e) => handleWizardKeyDown(e, wizardCompanyInput, setWizardCompanyInput, wizardCompanyTypes, setWizardCompanyTypes)}
                                     placeholder="Type company type and press Enter or comma..."
-                                    className="flex-1 px-4 py-2.5 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+                                    className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => addWizardTag(wizardCompanyInput, setWizardCompanyInput, wizardCompanyTypes, setWizardCompanyTypes)}
-                                    className="px-4 py-2.5 bg-bg-elevated border border-border-default hover:bg-bg-subtle text-text-secondary rounded-xl text-sm font-medium transition-all flex items-center justify-center"
+                                    className="px-4 py-3 border-2 border-border hover:bg-foreground/5 text-muted-foreground hover:text-foreground font-bold flex items-center justify-center rounded-none cursor-pointer"
                                   >
                                     <Plus className="w-4 h-4" />
                                   </button>
                                 </div>
                                 {wizardCompanyTypes.length > 0 ? (
-                                  <div className="flex flex-wrap gap-2 mt-2 p-3 bg-bg-elevated/40 border border-border-default/40 rounded-xl">
+                                  <div className="flex flex-wrap gap-2 mt-2 p-3 bg-foreground/[0.02] border border-border rounded-none">
                                     {wizardCompanyTypes.map((tag) => (
                                       <span
                                         key={tag}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-dim text-accent-primary border border-accent-primary/20 text-xs font-medium"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#ea580c]/5 text-[#ea580c] border border-[#ea580c]/30 text-xs font-bold uppercase tracking-wider rounded-none"
                                       >
                                         {tag}
                                         <button
                                           type="button"
                                           onClick={() => removeWizardTag(tag, wizardCompanyTypes, setWizardCompanyTypes)}
-                                          className="p-0.5 rounded-full hover:bg-accent-primary/20 text-accent-primary transition-colors"
+                                          className="p-0.5 hover:bg-[#ea580c]/20 text-[#ea580c] transition-colors cursor-pointer"
                                         >
                                           <X className="w-3 h-3" />
                                         </button>
@@ -1401,13 +1377,13 @@ If any check fails → fix the affected records before outputting <final>.`;
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-xs text-text-faint italic">No company types added yet.</p>
+                                  <p className="text-[10px] text-muted-foreground italic">No company types added yet.</p>
                                 )}
                               </div>
 
                               {/* Min Job Age */}
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                   Max Job Posting Age (Days)
                                 </label>
                                 <input
@@ -1415,10 +1391,10 @@ If any check fails → fix the affected records before outputting <final>.`;
                                   value={wizardMinJobAgeDays}
                                   onChange={(e) => setWizardMinJobAgeDays(parseInt(e.target.value) || 0)}
                                   min={1}
-                                  className="w-full px-4 py-3 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+                                  className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
                                 />
-                                <p className="text-[11px] text-text-muted">
-                                  Companies must have a job posting dated within this limit.
+                                <p className="text-[10px] text-muted-foreground">
+                                  Filter parameters for lead database.
                                 </p>
                               </div>
                             </div>
@@ -1427,29 +1403,29 @@ If any check fails → fix the affected records before outputting <final>.`;
                           {wizardStep === 4 && (
                             <div className="space-y-4 animate-fade-in">
                               <div className="flex justify-between items-center">
-                                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                                  Final Outbound Researcher Prompt
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                  Final Dynamic Sourcing Prompt
                                 </label>
-                                <span className="text-[11px] text-accent-primary bg-accent-dim px-2.5 py-0.5 rounded-full border border-accent-primary/10">
-                                  Tailored dynamically
+                                <span className="text-[9px] font-bold border border-[#ea580c]/30 bg-[#ea580c]/5 text-[#ea580c] px-2 py-0.5 uppercase tracking-wider rounded-none">
+                                  Ready
                                 </span>
                               </div>
 
-                              <pre className="text-xs text-text-primary leading-relaxed font-mono bg-black/40 p-4 rounded-xl border border-border-default whitespace-pre-wrap max-h-[40vh] overflow-y-auto">
+                              <pre className="text-[11px] text-foreground leading-relaxed font-mono bg-foreground/[0.02] p-4 border-2 border-border whitespace-pre-wrap max-h-[40vh] overflow-y-auto rounded-none">
                                 {generateDynamicPromptText()}
                               </pre>
 
-                              <div className="flex items-center gap-2.5 p-3 bg-bg-elevated/40 border border-border-default rounded-xl mt-2 select-none cursor-pointer" onClick={() => setWizardSaveDefault(!wizardSaveDefault)}>
+                              <div className="flex items-center gap-2.5 p-3 border-2 border-border bg-foreground/[0.02] mt-2 select-none cursor-pointer rounded-none" onClick={() => setWizardSaveDefault(!wizardSaveDefault)}>
                                 <input
                                   type="checkbox"
                                   checked={wizardSaveDefault}
                                   onChange={(e) => setWizardSaveDefault(e.target.checked)}
-                                  className="w-4 h-4 rounded border-border-default text-accent-primary focus:ring-accent-primary bg-bg-elevated cursor-pointer"
+                                  className="w-4 h-4 border-2 border-border bg-card text-[#ea580c] focus:ring-0 focus:outline-none cursor-pointer"
                                   onClick={(e) => e.stopPropagation()}
                                 />
-                                <div className="text-xs">
-                                  <p className="font-semibold text-text-primary">Save as default outbound profile</p>
-                                  <p className="text-text-muted">Persist these settings to your user settings for future campaigns</p>
+                                <div>
+                                  <p className="font-bold text-foreground uppercase tracking-wide">Save parameters to Settings</p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">Make these parameters your active template default</p>
                                 </div>
                               </div>
                             </div>
@@ -1457,12 +1433,12 @@ If any check fails → fix the affected records before outputting <final>.`;
                         </div>
 
                         {/* Footer Navigation */}
-                        <div className="p-4 border-t border-border-subtle bg-bg-elevated/50 flex justify-between items-center">
+                        <div className="p-4 border-t-2 border-border bg-foreground/[0.02] flex justify-between items-center">
                           <div>
                             {wizardStep > 1 ? (
                               <button
                                 onClick={() => setWizardStep((prev) => prev - 1)}
-                                className="px-4 py-2 rounded-lg bg-bg-elevated hover:bg-bg-subtle text-text-secondary border border-border-default text-sm font-medium transition-all flex items-center gap-1.5"
+                                className="px-4 py-2.5 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest text-muted-foreground bg-card transition-colors rounded-none cursor-pointer flex items-center gap-1.5"
                               >
                                 <ArrowLeft className="w-4 h-4" />
                                 Back
@@ -1476,7 +1452,6 @@ If any check fails → fix the affected records before outputting <final>.`;
                             {wizardStep < 4 ? (
                               <button
                                 onClick={() => {
-                                  // Auto add remaining tag inputs if not added
                                   if (wizardStep === 2) {
                                     if (wizardRolesInput.trim()) {
                                       addWizardTag(wizardRolesInput, setWizardRolesInput, wizardRoles, setWizardRoles);
@@ -1491,7 +1466,7 @@ If any check fails → fix the affected records before outputting <final>.`;
                                   }
                                   setWizardStep((prev) => prev + 1);
                                 }}
-                                className="px-5 py-2 rounded-lg bg-accent-primary hover:bg-accent-primary-hover text-white text-sm font-medium transition-all flex items-center gap-1.5"
+                                className="px-5 py-3 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-colors rounded-none cursor-pointer flex items-center gap-1.5"
                               >
                                 Next
                                 <ArrowRight className="w-4 h-4" />
@@ -1500,12 +1475,12 @@ If any check fails → fix the affected records before outputting <final>.`;
                               <button
                                 onClick={handleFinishWizard}
                                 disabled={savingDefault}
-                                className="px-5 py-2 rounded-lg bg-accent-primary hover:bg-accent-primary-hover disabled:opacity-50 text-white text-sm font-medium transition-all flex items-center gap-1.5"
+                                className="px-5 py-3 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-colors rounded-none cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                               >
                                 {savingDefault ? (
                                   <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    Saving...
+                                    Saving profile...
                                   </>
                                 ) : copiedPrompt ? (
                                   <>
@@ -1515,7 +1490,7 @@ If any check fails → fix the affected records before outputting <final>.`;
                                 ) : (
                                   <>
                                     <Copy className="w-4 h-4" />
-                                    Copy & Finish
+                                    Copy &amp; Close
                                   </>
                                 )}
                               </button>
@@ -1530,17 +1505,17 @@ If any check fails → fix the affected records before outputting <final>.`;
               )}
             </div>
             {useSavedResume && userConfig?.savedResume ? (
-              <div className="border border-border-default rounded-xl p-8 flex flex-col items-center justify-center text-center bg-bg-surface">
-                <div className="w-12 h-12 rounded-full bg-accent-dim text-accent-primary flex items-center justify-center mb-3">
+              <div className="border-2 border-border bg-card p-8 flex flex-col items-center justify-center text-center rounded-none font-mono">
+                <div className="w-12 h-12 border-2 border-emerald-400 bg-emerald-400/5 text-emerald-400 flex items-center justify-center mb-3 rounded-none">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <h3 className="font-semibold text-text-primary mb-1">Saved Resume Active</h3>
-                <p className="text-sm text-text-secondary mb-4">{userConfig.savedResume.fileName}</p>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground mb-1">Persistent Resume Active</h3>
+                <p className="text-[10px] text-muted-foreground mb-4 uppercase">{userConfig.savedResume.fileName}</p>
                 <button
                   onClick={() => setUseSavedResume(false)}
-                  className="text-xs font-medium text-accent-primary hover:text-accent-primary-hover transition-colors"
+                  className="text-[10px] font-bold text-[#ea580c] hover:underline uppercase tracking-wider bg-transparent border-0 cursor-pointer"
                 >
-                  Use a different file for this campaign
+                  Upload alternate PDF file for this run
                 </button>
               </div>
             ) : (
@@ -1556,43 +1531,43 @@ If any check fails → fix the affected records before outputting <final>.`;
           {leads.length > 0 && (
             <>
               {alreadySent.size > 0 && (
-                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm animate-fade-in mb-3">
-                  <div className="flex items-center gap-2 text-amber-400">
+                <div className="flex items-center justify-between px-4 py-3 border-2 border-amber-500/30 bg-amber-500/5 text-xs font-mono rounded-none animate-fade-in mb-3">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                     <span>
-                      <strong>{alreadySent.size}</strong> {alreadySent.size === 1 ? "company has" : "companies have"} already been contacted
+                      {alreadySent.size} target {alreadySent.size === 1 ? "email is" : "emails are"} already contacted
                     </span>
                   </div>
                   <button
                     onClick={handleRemoveAlreadySent}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-500/30 hover:border-amber-400 bg-card text-amber-400 text-[10px] font-bold uppercase tracking-wider rounded-none cursor-pointer transition-colors"
                   >
-                    <Trash2 className="w-3 h-3" />
-                    Remove Already Sent
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remove Contacted
                   </button>
                 </div>
               )}
               {invalidEmails.size > 0 && (
-                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-error/10 border border-error/20 text-sm animate-fade-in">
-                  <div className="flex items-center gap-2 text-error">
+                <div className="flex items-center justify-between px-4 py-3 border-2 border-red-500/30 bg-red-500/5 text-xs font-mono rounded-none animate-fade-in">
+                  <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                     <span>
-                      <strong>{invalidEmails.size}</strong> {invalidEmails.size === 1 ? "email has" : "emails have"} invalid or missing domain MX records
+                      {invalidEmails.size} target {invalidEmails.size === 1 ? "email has" : "emails have"} invalid domain MX records
                     </span>
                   </div>
                   <button
                     onClick={handleRemoveInvalid}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-error/20 hover:bg-error/30 text-error text-xs font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-red-500/30 hover:border-red-400 bg-card text-red-400 text-[10px] font-bold uppercase tracking-wider rounded-none cursor-pointer transition-colors"
                   >
-                    <Trash2 className="w-3 h-3" />
-                    Remove Invalid Leads
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remove Invalid
                   </button>
                 </div>
               )}
               {checkingSent || isVerifying ? (
-                <div className="flex items-center gap-2 text-xs text-text-faint">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Verifying domains and checking history...
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground py-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ea580c]" />
+                  Scanning outbox records and resolving MX routes...
                 </div>
               ) : null}
               <CompanyTable
@@ -1605,17 +1580,17 @@ If any check fails → fix the affected records before outputting <final>.`;
             </>
           )}
 
-          {/* Edit Lead Modal Overlay */}
+          {/* Edit Lead Modal Overlay (Portal) */}
           {editingLead && mounted && createPortal(
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-              <div className="bg-bg-surface border border-border-default rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
-                <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-bg-elevated/50">
-                  <h3 className="font-semibold text-text-primary">Edit Lead</h3>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fade-in font-mono text-xs text-foreground">
+              <div className="bg-card border-2 border-border w-full max-w-md overflow-hidden shadow-2xl flex flex-col rounded-none">
+                <div className="flex items-center justify-between p-4 border-b-2 border-border bg-foreground/[0.02]">
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">Edit Target Parameters</h3>
                   <button
                     onClick={() => setEditingLead(null)}
-                    className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-subtle transition-colors"
+                    className="p-1.5 border border-border bg-card text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors rounded-none cursor-pointer"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -1635,62 +1610,62 @@ If any check fails → fix the affected records before outputting <final>.`;
                   }}
                 >
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-text-secondary">Company Name</label>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Company Name</label>
                     <input
                       name="company"
                       defaultValue={editingLead.company}
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
+                      className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono"
                       required
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-text-secondary">Role</label>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Role</label>
                     <input
                       name="role"
                       defaultValue={editingLead.role}
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
+                      className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono"
                       required
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-text-secondary">Email</label>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Recipient Email</label>
                     <input
                       name="contact_email"
                       defaultValue={editingLead.contact_email}
                       type="email"
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
+                      className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono"
                       required
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-text-secondary">Stack (comma separated)</label>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tech Stack (comma split)</label>
                     <input
                       name="stack"
                       defaultValue={(Array.isArray(editingLead.stack) ? editingLead.stack : [editingLead.stack]).filter(Boolean).join(", ")}
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
+                      className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-text-secondary">Fit Score</label>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Fit Score Rating</label>
                     <input
                       name="fit_score"
                       defaultValue={editingLead.fit_score}
-                      className="w-full bg-bg-subtle border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary"
+                      className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono"
                     />
                   </div>
                   <div className="pt-2 flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setEditingLead(null)}
-                      className="px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-all"
+                      className="px-4 py-2.5 border-2 border-border text-xs font-bold uppercase tracking-widest text-muted-foreground bg-card transition-all rounded-none cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 rounded-lg bg-accent-primary hover:bg-accent-primary-hover text-white text-sm font-medium transition-all"
+                      className="px-5 py-2.5 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-all rounded-none cursor-pointer animate-fade-in"
                     >
-                      Save Changes
+                      Save Target
                     </button>
                   </div>
                 </form>
@@ -1699,29 +1674,29 @@ If any check fails → fix the affected records before outputting <final>.`;
             document.body
           )}
 
-          {/* Delete Lead Modal Overlay */}
+          {/* Delete Lead Modal Overlay (Portal) */}
           {deletingLead && mounted && createPortal(
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-              <div className="bg-bg-surface border border-border-default rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fade-in font-mono text-xs text-foreground">
+              <div className="bg-card border-2 border-border w-full max-w-sm overflow-hidden shadow-2xl flex flex-col rounded-none">
                 <div className="p-6 text-center">
-                  <div className="w-12 h-12 rounded-full bg-error/10 text-error flex items-center justify-center mx-auto mb-4">
-                    <Trash2 className="w-6 h-6" />
+                  <div className="w-10 h-10 border-2 border-red-500 bg-red-500/5 text-red-400 flex items-center justify-center mx-auto mb-4 rounded-none">
+                    <Trash2 className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-lg text-text-primary mb-2">Delete Lead</h3>
-                  <p className="text-sm text-text-secondary">
-                    Are you sure you want to remove <span className="font-medium text-text-primary">{deletingLead.company}</span> from this campaign? This action cannot be undone.
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-foreground mb-2">Remove Target</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Remove <span className="font-bold text-foreground uppercase">{deletingLead.company}</span> from current outreach pipeline queue?
                   </p>
                 </div>
-                <div className="p-4 border-t border-border-subtle bg-bg-elevated/50 flex items-center gap-3">
+                <div className="p-4 border-t-2 border-border bg-foreground/[0.01] flex items-center gap-3">
                   <button
                     onClick={() => setDeletingLead(null)}
-                    className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-all"
+                    className="flex-1 py-2.5 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest text-muted-foreground transition-all cursor-pointer bg-card rounded-none"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={confirmDeleteLead}
-                    className="flex-1 px-4 py-2 rounded-lg bg-error hover:bg-error/90 text-white text-sm font-medium transition-all"
+                    className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold uppercase tracking-widest hover:bg-red-600 transition-all cursor-pointer rounded-none"
                   >
                     Delete Lead
                   </button>
@@ -1735,9 +1710,9 @@ If any check fails → fix the affected records before outputting <final>.`;
             <button
               disabled={!isUploadReady}
               onClick={() => setCurrentStep("generate")}
-              className="group px-6 py-3 rounded-xl bg-accent-primary hover:bg-accent-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-all flex items-center gap-2"
+              className="group px-6 py-3.5 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background disabled:opacity-40 disabled:hover:bg-foreground disabled:hover:text-background transition-all flex items-center gap-2 rounded-none cursor-pointer"
             >
-              Next: Generate Emails
+              Next: Personalise
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
@@ -1746,17 +1721,17 @@ If any check fails → fix the affected records before outputting <final>.`;
 
       {/* ── Step: Generate ── */}
       {currentStep === "generate" && (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-8 animate-fade-in font-mono text-xs">
           <div className="flex items-center justify-between">
-            <p className="text-text-secondary text-sm">
-              AI will create personalized emails for each company using your resume.
+            <p className="text-muted-foreground text-xs uppercase tracking-wide">
+              AI personalizer is processing batch pipeline...
             </p>
             <button
               onClick={() => setCurrentStep("upload")}
               disabled={isGenerating}
-              className="flex items-center gap-2 text-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-40"
+              className="flex items-center gap-2 border border-border bg-card px-3 py-1.5 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 rounded-none cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5" />
               Back
             </button>
           </div>
@@ -1774,9 +1749,9 @@ If any check fails → fix the affected records before outputting <final>.`;
             <div className="flex justify-end pt-4">
               <button
                 onClick={() => setCurrentStep("preview")}
-                className="group px-6 py-3 rounded-xl bg-accent-primary hover:bg-accent-primary-hover text-white font-medium transition-all flex items-center gap-2 shadow-sm"
+                className="group px-6 py-3.5 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-all flex items-center gap-2 rounded-none cursor-pointer"
               >
-                Next: Review & Edit
+                Next: Review &amp; Edit
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>
@@ -1786,16 +1761,16 @@ If any check fails → fix the affected records before outputting <final>.`;
 
       {/* ── Step: Preview ── */}
       {currentStep === "preview" && (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-8 animate-fade-in font-mono text-xs">
           <div className="flex items-center justify-between">
-            <p className="text-text-secondary text-sm">
-              Review generated emails, edit if needed, then select which to send.
+            <p className="text-muted-foreground text-xs uppercase tracking-wide">
+              Inspect generated outbound drafts. Check checkboxes to active queue send.
             </p>
             <button
               onClick={() => setCurrentStep("generate")}
-              className="flex items-center gap-2 text-sm text-text-muted hover:text-text-primary transition-colors"
+              className="flex items-center gap-2 border border-border bg-card px-3 py-1.5 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors rounded-none cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5" />
               Back
             </button>
           </div>
@@ -1817,6 +1792,75 @@ If any check fails → fix the affected records before outputting <final>.`;
           onReset={handleReset}
           autoResetSeconds={autoSend ? 8 : undefined}
         />
+      )}
+
+      {/* Custom Discard Draft Confirmation Modal (Portal) */}
+      {showDiscardDraftConfirm && mounted && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fade-in font-mono text-xs text-foreground">
+          <div className="bg-card border-2 border-border w-full max-w-sm overflow-hidden shadow-2xl flex flex-col rounded-none">
+            <div className="p-6 text-center">
+              <div className="w-10 h-10 border-2 border-red-500 bg-red-500/5 text-red-400 flex items-center justify-center mx-auto mb-4 rounded-none">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-sm uppercase tracking-wider text-foreground mb-2">Discard Draft</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Are you absolutely sure you want to discard this campaign draft? This will clear all parsed leads and generated copy.
+              </p>
+            </div>
+            <div className="p-4 border-t-2 border-border bg-foreground/[0.01] flex items-center gap-3">
+              <button
+                onClick={() => setShowDiscardDraftConfirm(false)}
+                className="flex-1 py-2.5 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest text-muted-foreground transition-all cursor-pointer bg-card rounded-none"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDiscardDraft}
+                className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold uppercase tracking-widest hover:bg-red-600 transition-all cursor-pointer rounded-none"
+              >
+                Discard Draft
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Custom Billing Redirect Confirmation Modal (Portal) */}
+      {billingRedirectMessage && mounted && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fade-in font-mono text-xs text-foreground">
+          <div className="bg-card border-2 border-border w-full max-w-md overflow-hidden shadow-2xl flex flex-col rounded-none">
+            <div className="p-6 text-center">
+              <div className="w-10 h-10 border-2 border-amber-500 bg-amber-500/5 text-amber-500 flex items-center justify-center mx-auto mb-4 rounded-none">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-sm uppercase tracking-wider text-foreground mb-2">Pipeline Limit Exceeded</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed break-words">
+                {billingRedirectMessage}
+              </p>
+              <p className="text-[11px] text-[#ea580c] mt-2 font-bold uppercase tracking-wider">
+                Upgrade your subscription plan to increase sending quotas.
+              </p>
+            </div>
+            <div className="p-4 border-t-2 border-border bg-foreground/[0.01] flex items-center gap-3">
+              <button
+                onClick={() => setBillingRedirectMessage(null)}
+                className="flex-1 py-2.5 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest text-muted-foreground transition-all cursor-pointer bg-card rounded-none"
+              >
+                Stay Here
+              </button>
+              <button
+                onClick={() => {
+                  window.location.href = "/dashboard/billing";
+                }}
+                className="flex-1 py-2.5 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-all cursor-pointer rounded-none"
+              >
+                Upgrade Plan
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

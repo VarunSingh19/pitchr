@@ -25,11 +25,20 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl">
+    <div className="space-y-8 animate-fade-in max-w-4xl">
+      {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold mb-1">Settings</h1>
-        <p className="text-text-secondary text-sm">
-          Manage your credentials and base resume.
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-2.5 h-2.5 bg-[#ea580c] animate-blink" />
+          <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-muted-foreground">
+            // TELEMETRY &amp; CONFIG
+          </span>
+        </div>
+        <h1 className="font-pixel text-3xl sm:text-4xl tracking-tight text-foreground">
+          SETTINGS
+        </h1>
+        <p className="text-xs font-mono text-muted-foreground mt-1 tracking-wide">
+          Configure credentials, persistent assets, and pipeline prompts
         </p>
       </div>
 
@@ -38,35 +47,41 @@ export default function SettingsPage() {
           const isOpen = openSection === key;
 
           return (
-            <div key={key} className="rounded-2xl border border-border-default bg-bg-surface overflow-hidden transition-all duration-300">
+            <div
+              key={key}
+              className={cn(
+                "border-2 transition-all duration-200 bg-card rounded-none",
+                isOpen ? "border-[#ea580c]" : "border-border hover:border-foreground/20"
+              )}
+            >
               <button
                 onClick={() => toggleSection(key)}
-                className="w-full flex items-center justify-between p-5 hover:bg-bg-elevated transition-colors text-left"
+                className="w-full flex items-center justify-between p-5 text-left font-mono"
               >
                 <div className="flex items-center gap-4">
                   <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                    isOpen ? "bg-accent-dim text-accent-primary" : "bg-bg-subtle text-text-muted"
+                    "w-10 h-10 border-2 flex items-center justify-center transition-colors rounded-none",
+                    isOpen ? "border-[#ea580c] bg-[#ea580c]/5 text-[#ea580c]" : "border-border bg-foreground/5 text-muted-foreground"
                   )}>
                     <Icon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-text-primary">{label}</h3>
-                    <p className="text-xs text-text-muted mt-0.5">{description}</p>
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">{label}</h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 tracking-wide">{description}</p>
                   </div>
                 </div>
                 <ChevronDown className={cn(
-                  "w-5 h-5 text-text-muted transition-transform duration-300",
-                  isOpen && "transform rotate-180 text-accent-primary"
+                  "w-5 h-5 text-muted-foreground transition-transform duration-200",
+                  isOpen && "transform rotate-180 text-[#ea580c]"
                 )} />
               </button>
 
               <div className={cn(
-                "grid transition-all duration-300 ease-in-out",
+                "grid transition-all duration-200 ease-in-out",
                 isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
               )}>
                 <div className="overflow-hidden">
-                  <div className="p-5 pt-0 border-t border-border-default/50 mt-2">
+                  <div className="p-5 pt-0 border-t-2 border-border/45 mt-2">
                     <div className="pt-4">
                       {key === "gmail" && <GmailSettings />}
                       {key === "resume" && <ResumeSettings />}

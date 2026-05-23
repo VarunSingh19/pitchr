@@ -136,30 +136,30 @@ export function PromptSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-text-muted">
-        <Loader2 className="w-5 h-5 animate-spin" />
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin text-[#ea580c]" />
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-6">
+    <form onSubmit={handleSave} className="space-y-6 font-mono text-xs">
       <div>
-        <h2 className="text-lg font-semibold">Prompt Setup</h2>
-        <p className="text-sm text-text-muted">
-          Configure default search parameters used to generate B2B outbound list research prompts for Claude or ChatGPT.
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">Prompt Setup</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Configure default search criteria for generating outbound lead lists.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border-default bg-bg-surface p-6 space-y-5">
+      <div className="border-2 border-border bg-card p-6 space-y-5 rounded-none">
         {error && (
-          <div className="flex items-center gap-2 text-sm text-error bg-error-dim px-4 py-3 rounded-xl border border-error/20">
+          <div className="flex items-center gap-2 text-xs text-red-400 font-bold uppercase tracking-wider border-2 border-red-500/30 bg-red-500/5 px-4 py-3">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             {error}
           </div>
         )}
         {success && (
-          <div className="flex items-center gap-2 text-sm text-success bg-success-dim px-4 py-3 rounded-xl border border-success/20">
+          <div className="flex items-center gap-2 text-xs text-emerald-400 font-bold uppercase tracking-wider border-2 border-emerald-500/30 bg-emerald-400/5 px-4 py-3">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             {success}
           </div>
@@ -168,7 +168,7 @@ export function PromptSettings() {
         <div className="grid md:grid-cols-2 gap-5">
           {/* Target Geography */}
           <div className="space-y-2 md:col-span-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               Target Geography
             </label>
             <textarea
@@ -176,17 +176,17 @@ export function PromptSettings() {
               onChange={(e) => setTargetGeography(e.target.value)}
               placeholder="e.g. Mumbai — specifically Malad and Andheri areas..."
               rows={3}
-              className="w-full px-4 py-3 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none resize-none"
+              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none resize-none rounded-none"
               required
             />
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[10px] text-muted-foreground">
               Define the target region, specific neighborhoods, and fallback areas.
             </p>
           </div>
 
           {/* Researcher Location */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               Researcher Location Context
             </label>
             <input
@@ -194,17 +194,17 @@ export function PromptSettings() {
               value={researcherLocation}
               onChange={(e) => setResearcherLocation(e.target.value)}
               placeholder="e.g. Mumbai, Maharashtra"
-              className="w-full px-4 py-3 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
               required
             />
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[10px] text-muted-foreground">
               Geography context of the B2B researcher.
             </p>
           </div>
 
           {/* Min Job Age */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               Max Posting Age (Days)
             </label>
             <input
@@ -212,22 +212,22 @@ export function PromptSettings() {
               value={minJobAgeDays}
               onChange={(e) => setMinJobAgeDays(parseInt(e.target.value) || 0)}
               min={1}
-              className="w-full px-4 py-3 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
               required
             />
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[10px] text-muted-foreground">
               Maximum age of job postings in days.
             </p>
           </div>
         </div>
 
-        <div className="border-t border-border-subtle/50 my-6" />
+        <div className="border-t-2 border-border/40 my-6" />
 
         {/* Dynamic Tag Fields */}
         <div className="space-y-5">
           {/* Target Roles */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               Target Job Roles
             </label>
             <div className="flex gap-2">
@@ -237,28 +237,28 @@ export function PromptSettings() {
                 onChange={(e) => setRolesInput(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, rolesInput, setRolesInput, roles, setRoles)}
                 placeholder="Type role and press Enter or comma..."
-                className="flex-1 px-4 py-2.5 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
               />
               <button
                 type="button"
                 onClick={() => addTag(rolesInput, setRolesInput, roles, setRoles)}
-                className="px-4 py-2.5 bg-bg-elevated border border-border-default hover:bg-bg-subtle text-text-secondary rounded-xl text-sm font-medium transition-all flex items-center justify-center"
+                className="px-4 py-3 border-2 border-border hover:bg-foreground/5 text-muted-foreground hover:text-foreground font-bold flex items-center justify-center rounded-none cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
             {roles.length > 0 ? (
-              <div className="flex flex-wrap gap-2 mt-2 p-3 bg-bg-elevated/40 border border-border-default/40 rounded-xl">
+              <div className="flex flex-wrap gap-2 mt-2 p-3 bg-foreground/[0.02] border-2 border-border rounded-none">
                 {roles.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-dim text-accent-primary border border-accent-primary/20 text-xs font-medium"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#ea580c]/5 text-[#ea580c] border border-[#ea580c]/30 text-xs font-bold uppercase tracking-wider rounded-none"
                   >
                     {tag}
                     <button
                       type="button"
                       onClick={() => removeTag(tag, roles, setRoles)}
-                      className="p-0.5 rounded-full hover:bg-accent-primary/20 text-accent-primary transition-colors"
+                      className="p-0.5 hover:bg-[#ea580c]/20 text-[#ea580c] transition-colors cursor-pointer"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -266,13 +266,13 @@ export function PromptSettings() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-text-faint italic">No roles added yet.</p>
+              <p className="text-[10px] text-muted-foreground italic">No roles added yet.</p>
             )}
           </div>
 
           {/* Tech Stack */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               Target Skills & Technologies
             </label>
             <div className="flex gap-2">
@@ -282,28 +282,28 @@ export function PromptSettings() {
                 onChange={(e) => setStackInput(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, stackInput, setStackInput, stack, setStack)}
                 placeholder="Type skill and press Enter or comma..."
-                className="flex-1 px-4 py-2.5 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
               />
               <button
                 type="button"
                 onClick={() => addTag(stackInput, setStackInput, stack, setStack)}
-                className="px-4 py-2.5 bg-bg-elevated border border-border-default hover:bg-bg-subtle text-text-secondary rounded-xl text-sm font-medium transition-all flex items-center justify-center"
+                className="px-4 py-3 border-2 border-border hover:bg-foreground/5 text-muted-foreground hover:text-foreground font-bold flex items-center justify-center rounded-none cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
             {stack.length > 0 ? (
-              <div className="flex flex-wrap gap-2 mt-2 p-3 bg-bg-elevated/40 border border-border-default/40 rounded-xl">
+              <div className="flex flex-wrap gap-2 mt-2 p-3 bg-foreground/[0.02] border-2 border-border rounded-none">
                 {stack.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-dim text-accent-primary border border-accent-primary/20 text-xs font-medium"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#ea580c]/5 text-[#ea580c] border border-[#ea580c]/30 text-xs font-bold uppercase tracking-wider rounded-none"
                   >
                     {tag}
                     <button
                       type="button"
                       onClick={() => removeTag(tag, stack, setStack)}
-                      className="p-0.5 rounded-full hover:bg-accent-primary/20 text-accent-primary transition-colors"
+                      className="p-0.5 hover:bg-[#ea580c]/20 text-[#ea580c] transition-colors cursor-pointer"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -311,13 +311,13 @@ export function PromptSettings() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-text-faint italic">No technologies added yet.</p>
+              <p className="text-[10px] text-muted-foreground italic">No technologies added yet.</p>
             )}
           </div>
 
           {/* Company Types */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               Target Company Types
             </label>
             <div className="flex gap-2">
@@ -327,28 +327,28 @@ export function PromptSettings() {
                 onChange={(e) => setCompanyInput(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, companyInput, setCompanyInput, companyTypes, setCompanyTypes)}
                 placeholder="Type company type and press Enter or comma..."
-                className="flex-1 px-4 py-2.5 bg-bg-elevated border border-border-default hover:border-border-subtle focus:border-accent-primary rounded-xl text-sm transition-all focus:outline-none"
+                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
               />
               <button
                 type="button"
                 onClick={() => addTag(companyInput, setCompanyInput, companyTypes, setCompanyTypes)}
-                className="px-4 py-2.5 bg-bg-elevated border border-border-default hover:bg-bg-subtle text-text-secondary rounded-xl text-sm font-medium transition-all flex items-center justify-center"
+                className="px-4 py-3 border-2 border-border hover:bg-foreground/5 text-muted-foreground hover:text-foreground font-bold flex items-center justify-center rounded-none cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
             {companyTypes.length > 0 ? (
-              <div className="flex flex-wrap gap-2 mt-2 p-3 bg-bg-elevated/40 border border-border-default/40 rounded-xl">
+              <div className="flex flex-wrap gap-2 mt-2 p-3 bg-foreground/[0.02] border-2 border-border rounded-none">
                 {companyTypes.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-dim text-accent-primary border border-accent-primary/20 text-xs font-medium"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#ea580c]/5 text-[#ea580c] border border-[#ea580c]/30 text-xs font-bold uppercase tracking-wider rounded-none"
                   >
                     {tag}
                     <button
                       type="button"
                       onClick={() => removeTag(tag, companyTypes, setCompanyTypes)}
-                      className="p-0.5 rounded-full hover:bg-accent-primary/20 text-accent-primary transition-colors"
+                      className="p-0.5 hover:bg-[#ea580c]/20 text-[#ea580c] transition-colors cursor-pointer"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -356,7 +356,7 @@ export function PromptSettings() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-text-faint italic">No company types added yet.</p>
+              <p className="text-[10px] text-muted-foreground italic">No company types added yet.</p>
             )}
           </div>
         </div>
@@ -365,7 +365,7 @@ export function PromptSettings() {
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-accent-primary hover:bg-accent-primary-hover text-white text-sm font-semibold transition-all shadow-md shadow-accent-primary/20 disabled:opacity-50"
+            className="flex items-center gap-2 px-6 py-3 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background disabled:opacity-40 disabled:hover:bg-foreground disabled:hover:text-background transition-all rounded-none cursor-pointer"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             {saving ? "Saving Changes..." : "Save Configuration"}
