@@ -22,10 +22,8 @@ export function Navbar() {
             transition={{ delay: 0.2, duration: 0.4 }}
             className="flex items-center gap-3"
           >
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-6 h-6 bg-[#ea580c] flex items-center justify-center">
-                <Mail className="w-3.5 h-3.5 text-white" />
-              </div>
+            <Link href="/" className="flex items-center gap-2">
+              <img src="/icon.png" alt="Pitchr Logo" className="w-7 h-7 object-contain flex-shrink-0" />
               <span className="text-xs font-mono tracking-[0.15em] uppercase font-bold">
                 PITCHR.AI
               </span>

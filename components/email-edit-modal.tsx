@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Type } from "lucide-react";
 import type { GeneratedEmail } from "@/lib/types";
 
@@ -20,6 +21,7 @@ export function EmailEditModal({
   const [subject, setSubject] = useState(email.subject);
   const [body, setBody] = useState(email.body);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [mounted, setMounted] = useState(false);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -29,9 +31,20 @@ export function EmailEditModal({
     }
   }, [body]);
 
+  // Handle client mount and lock scrolling
+  useEffect(() => {
+    setMounted(true);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, []);
+
   const wordCount = body.trim().split(/\s+/).filter(Boolean).length;
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fade-in font-mono text-xs">
       {/* Backdrop */}
       <div
@@ -127,6 +140,7 @@ export function EmailEditModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -21,6 +21,11 @@ const STEPS: { key: Step; label: string; num: number }[] = [
   { key: "send", label: "Send Outbox", num: 4 },
 ];
 
+const cleanWebsiteUrl = (url: string) => {
+  if (!url) return "";
+  return url.replace(/^https?:\/\/(www\.)?/, "");
+};
+
 interface PromptConfig {
   targetGeography: string;
   targetRoles: string[];
@@ -33,6 +38,7 @@ interface PromptConfig {
 
 interface UserConfig {
   userName: string;
+  plan: string;
   gmailConfigured: boolean;
   gmailAddress: string;
   selectedModel: string;
@@ -41,6 +47,8 @@ interface UserConfig {
     parsedText: string;
   } | null;
   promptConfig: PromptConfig;
+  discoveryRemaining?: number;
+  discoveryLimit?: number;
 }
 
 export default function NewCampaignPage() {
@@ -52,6 +60,17 @@ export default function NewCampaignPage() {
 
   // ── Upload state ──
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [uploadTab, setUploadTab] = useState<"upload" | "discover">("upload");
+  const [sourcingSubTab, setSourcingSubTab] = useState<"jobs" | "leads">("jobs");
+  const [discoverQuery, setDiscoverQuery] = useState("");
+  const [discoverLocation, setDiscoverLocation] = useState("");
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveredLeads, setDiscoveredLeads] = useState<any[]>([]);
+  const [selectedDiscoveredIds, setSelectedDiscoveredIds] = useState<Set<string>>(new Set());
+  const [discoveryStatus, setDiscoveryStatus] = useState("");
+  const [isPollingDiscovery, setIsPollingDiscovery] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [resumeFileName, setResumeFileName] = useState("");
@@ -479,7 +498,7 @@ If any check fails → fix the affected records before outputting <final>.`;
   const [draftRestored, setDraftRestored] = useState(false);
 
   // ── Auto-save draft ──
-  const hasMeaningfulData = leads.length > 0 || generatedEmails.length > 0;
+  const hasMeaningfulData = leads.length > 0 || generatedEmails.length > 0 || isGenerating || !!campaignId;
   const generationPausedAt: number | null = null;
 
   useAutoSaveDraft(
@@ -489,13 +508,18 @@ If any check fails → fix the affected records before outputting <final>.`;
     resumeFileName,
     generatedEmails,
     generationPausedAt,
+    campaignId,
+    isGenerating,
+    isSending,
+    autoSend,
+    pollingStatus,
     hasMeaningfulData
   );
 
   // ── Restore draft on mount ──
   useEffect(() => {
     const draft = loadDraft();
-    if (draft && (draft.leads.length > 0 || draft.generatedEmails.length > 0)) {
+    if (draft && (draft.leads.length > 0 || draft.generatedEmails.length > 0 || draft.isGenerating || draft.campaignId)) {
       setLeads(draft.leads);
       setResumeText(draft.resumeText);
       setResumeFileName(draft.resumeFileName);
@@ -503,6 +527,22 @@ If any check fails → fix the affected records before outputting <final>.`;
       setCurrentStep(draft.step === "send" ? "preview" : draft.step);
       setDraftRestored(true);
       if (draft.resumeText) setUseSavedResume(false);
+
+      if (draft.campaignId) {
+        setCampaignId(draft.campaignId);
+      }
+      if (draft.isGenerating) {
+        setIsGenerating(true);
+      }
+      if (draft.isSending) {
+        setIsSending(true);
+      }
+      if (draft.autoSend) {
+        setAutoSend(draft.autoSend);
+      }
+      if (draft.pollingStatus) {
+        setPollingStatus(draft.pollingStatus);
+      }
     }
   }, []);
 
@@ -519,6 +559,7 @@ If any check fails → fix the affected records before outputting <final>.`;
 
         setUserConfig({
           userName: session?.user?.name || "",
+          plan: data.plan || "free",
           gmailConfigured: data.gmailConfigured ?? false,
           gmailAddress: data.gmailConfig?.address || "",
           selectedModel: data.selectedModel || "",
@@ -531,7 +572,9 @@ If any check fails → fix the affected records before outputting <final>.`;
             minJobAgeDays: 90,
             researcherLocation: "Mumbai, Maharashtra",
             hasConfigured: false
-          }
+          },
+          discoveryRemaining: data.discoveryRemaining,
+          discoveryLimit: data.discoveryLimit
         });
       } catch {
         setUserConfig(null);
@@ -632,6 +675,16 @@ If any check fails → fix the affected records before outputting <final>.`;
   // ── Reset ──
   const handleReset = useCallback(() => {
     setLeads([]);
+    setUploadTab("upload");
+    setSourcingSubTab("jobs");
+    setDiscoverQuery("");
+    setDiscoverLocation("");
+    setIsDiscovering(false);
+    setDiscoveredLeads([]);
+    setSelectedDiscoveredIds(new Set());
+    setDiscoveryStatus("");
+    setIsPollingDiscovery(false);
+    setShowUpgradeModal(false);
     setResumeFile(null);
     setResumeText("");
     setResumeFileName("");
@@ -654,6 +707,226 @@ If any check fails → fix the affected records before outputting <final>.`;
     setBillingRedirectMessage(null);
     clearDraft();
   }, []);
+
+  // ── Leads Discovery Sourcing & Polling Callbacks ──
+  const handleStartDiscovery = useCallback(async () => {
+    const queryTrimmed = discoverQuery.trim();
+    if (!queryTrimmed) return;
+
+    setIsDiscovering(true);
+    setDiscoveredLeads([]);
+    setSelectedDiscoveredIds(new Set());
+    setDiscoveryStatus("Connecting to sourcing agent...");
+
+    try {
+      const res = await fetch("/api/leads/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: queryTrimmed,
+          location: discoverLocation.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `Discovery failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (typeof data.discoveryRemaining === "number") {
+        setUserConfig((prev) => prev ? { ...prev, discoveryRemaining: data.discoveryRemaining } : null);
+      }
+
+      // Case 1: All cached results already seen, no new data available
+      if (data.allSeen && data.noNewData) {
+        setIsDiscovering(false);
+        setDiscoveryStatus("No new leads found. Try a different search.");
+        toast.info("No new leads found for this query. Try a different search.");
+      // Case 2: Unseen results from shared cache (no quota deducted)
+      } else if (data.cached && data.leads) {
+        setDiscoveredLeads(data.leads);
+        setSelectedDiscoveredIds(new Set(data.leads.map((l: any) => l.jobUrl)));
+        setIsDiscovering(false);
+        const cacheLabel = data.fromSharedCache ? "shared cache" : "cache";
+        setDiscoveryStatus(`Loaded ${data.leads.length} new results from ${cacheLabel} — no quota used.`);
+        toast.success(`Found ${data.leads.length} new leads from ${cacheLabel}!`);
+      // Case 3: Background discovery triggered (quota deducted)
+      } else if (data.trigger === "inngest" || data.trigger === "background") {
+        setDiscoveryStatus("Starting background discovery agents...");
+        setIsPollingDiscovery(true);
+      }
+    } catch (err: any) {
+      console.error("Start discovery error:", err);
+      setIsDiscovering(false);
+      toast.error(err.message || "Failed to start discovery");
+    }
+  }, [discoverQuery, discoverLocation]);
+
+  // ── Find More Leads (force refresh — burns 1 quota credit) ──
+  const handleFindMoreLeads = useCallback(async () => {
+    const queryTrimmed = discoverQuery.trim();
+    if (!queryTrimmed) return;
+
+    setIsDiscovering(true);
+    setDiscoveryStatus("Fetching next page of results...");
+
+    try {
+      const res = await fetch("/api/leads/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: queryTrimmed,
+          location: discoverLocation.trim(),
+          forceRefresh: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `Discovery failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (typeof data.discoveryRemaining === "number") {
+        setUserConfig((prev) => prev ? { ...prev, discoveryRemaining: data.discoveryRemaining } : null);
+      }
+
+      if (data.trigger === "inngest" || data.trigger === "background") {
+        setDiscoveryStatus("Sourcing new leads from job boards...");
+        setIsPollingDiscovery(true);
+      }
+    } catch (err: any) {
+      console.error("Find more leads error:", err);
+      setIsDiscovering(false);
+      toast.error(err.message || "Failed to fetch more leads");
+    }
+  }, [discoverQuery, discoverLocation]);
+
+  const handleImportSelection = useCallback(() => {
+    const selectedJobs = discoveredLeads.filter((l) => selectedDiscoveredIds.has(l.jobUrl));
+    if (selectedJobs.length === 0) return;
+
+    const mapped: Lead[] = selectedJobs.map((job, idx) => ({
+      id: `discovered-${Date.now()}-${idx}`,
+      company: job.companyName,
+      role: job.jobTitle,
+      description: job.description || `Hiring for ${job.jobTitle} at ${job.companyName}`,
+      contact_email: job.contactEmail || "",
+      website: job.website || "",
+      type: "Full-time",
+      stack: [discoverQuery.trim()],
+      fit_score: job.fitScore || "Discovered from active job board posting.",
+      status: "Actively Hiring"
+    }));
+
+    setLeads((prev) => {
+      const seenEmails = new Set(prev.map((l) => l.contact_email?.toLowerCase()).filter(Boolean));
+      const uniqueNew = mapped.filter((l) => !seenEmails.has(l.contact_email?.toLowerCase()));
+      const updated = [...prev, ...uniqueNew];
+      checkAlreadySent(updated);
+      return updated;
+    });
+
+    setSourcingSubTab("leads");
+
+    toast.success(`Imported ${mapped.length} leads to campaign session.`);
+  }, [discoveredLeads, selectedDiscoveredIds, discoverQuery, checkAlreadySent, setSourcingSubTab]);
+
+  const handleToggleSelectAllDiscovered = useCallback(() => {
+    if (selectedDiscoveredIds.size === discoveredLeads.length) {
+      setSelectedDiscoveredIds(new Set());
+    } else {
+      setSelectedDiscoveredIds(new Set(discoveredLeads.map((l) => l.jobUrl)));
+    }
+  }, [discoveredLeads, selectedDiscoveredIds]);
+
+  const handleToggleSelectDiscovered = useCallback((jobUrl: string) => {
+    setSelectedDiscoveredIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobUrl)) {
+        next.delete(jobUrl);
+      } else {
+        next.add(jobUrl);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleDeselectNoEmails = useCallback(() => {
+    setSelectedDiscoveredIds((prev) => {
+      const next = new Set(prev);
+      discoveredLeads.forEach((job) => {
+        if (!job.contactEmail) {
+          next.delete(job.jobUrl);
+        }
+      });
+      return next;
+    });
+    toast.success("Unselected targets with missing emails.");
+  }, [discoveredLeads]);
+
+  // ── Leads Discovery 3s Polling Effect ──
+  useEffect(() => {
+    if (!isPollingDiscovery) return;
+
+    const startTime = Date.now();
+    let lastCount = 0;
+    let noIncreaseStreak = 0;
+
+    const poll = async () => {
+      if (Date.now() - startTime >= 60000) {
+        console.log("[DiscoverPoll] 60s timeout reached. Stopping.");
+        setIsPollingDiscovery(false);
+        setIsDiscovering(false);
+        toast.info("Discovery finished (timeout).");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/leads/discover?query=${encodeURIComponent(discoverQuery)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const leads = data.leads || [];
+
+        setDiscoveredLeads(leads);
+        
+        setSelectedDiscoveredIds((prev) => {
+          const next = new Set(prev);
+          leads.forEach((l: any) => {
+            if (!prev.has(l.jobUrl)) {
+              next.add(l.jobUrl);
+            }
+          });
+          return next;
+        });
+
+        const currentCount = leads.length;
+        setDiscoveryStatus(`Sourced ${currentCount} leads so far...`);
+
+        if (currentCount > 0 && currentCount === lastCount) {
+          noIncreaseStreak += 1;
+        } else {
+          noIncreaseStreak = 0;
+        }
+
+        lastCount = currentCount;
+
+        if (noIncreaseStreak >= 2) {
+          console.log("[DiscoverPoll] Count static for 2 consecutive polls. Stopping.");
+          setIsPollingDiscovery(false);
+          setIsDiscovering(false);
+          toast.success(`Discovery finished. Sourced ${currentCount} leads.`);
+        }
+      } catch (err) {
+        console.error("[DiscoverPoll] Error polling:", err);
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, [isPollingDiscovery, discoverQuery]);
 
   // ── Polling Logic ──
   useEffect(() => {
@@ -953,11 +1226,245 @@ If any check fails → fix the affected records before outputting <final>.`;
     }
 
     return (
-      <div className="flex items-center justify-between px-4 py-3 border-2 border-amber-500/30 bg-amber-500/5 text-xs font-mono rounded-none">
-        <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>Configuration Warning: {issues.join(" · ")}</span>
+      <div className="flex flex-col gap-2 p-4 border-2 border-amber-500/30 bg-amber-500/5 text-xs font-mono text-amber-500 rounded-none">
+        <div className="flex items-center gap-2 font-bold uppercase tracking-wider">
+          <AlertCircle className="w-4 h-4" />
+          Outbox Route Configuration Pending
         </div>
+        <ul className="list-disc pl-5 mt-1 space-y-0.5">
+          {issues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+        <p className="mt-1 text-[10px] text-muted-foreground uppercase font-bold">
+          Please configure these parameters in <a href="/dashboard/settings" className="underline hover:text-[#ea580c]">Settings</a> to enable campaign dispatching.
+        </p>
+      </div>
+    );
+  };
+
+  const renderJobsList = () => {
+    return (
+      <div className="space-y-3 animate-fade-in font-mono text-xs">
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center border-b-2 border-border pb-2">
+  <h3 className="font-bold text-xs uppercase tracking-wider text-foreground leading-relaxed">
+    Discovered Targets ({selectedDiscoveredIds.size} / {discoveredLeads.length} Selected)
+  </h3>
+
+  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+    <button
+      onClick={handleDeselectNoEmails}
+      className="
+        w-full sm:w-auto
+        px-3 py-2
+        border-2 border-border
+        hover:border-[#ea580c] hover:text-[#ea580c]
+        text-muted-foreground
+        text-xs font-bold uppercase tracking-widest
+        transition-colors rounded-none cursor-pointer
+      "
+    >
+      Exclude No-Email
+    </button>
+
+    <button
+      onClick={handleImportSelection}
+      disabled={selectedDiscoveredIds.size === 0}
+      className="
+        w-full sm:w-auto
+        px-4 py-2
+        bg-[#ea580c] text-white
+        text-xs font-bold uppercase tracking-widest
+        hover:bg-[#d94e08]
+        disabled:opacity-50
+        transition-colors rounded-none cursor-pointer
+        flex items-center justify-center gap-1.5
+      "
+    >
+      <Plus className="w-4 h-4" />
+      Import Selection
+    </button>
+  </div>
+</div>
+
+        {discoveredLeads.length > 0 ? (
+          <div className="border-2 border-border bg-card rounded-none select-none">
+            {/* Table Header (Desktop only) */}
+            <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 border-b-2 border-border bg-foreground/[0.02] font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <div className="col-span-1 flex items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={discoveredLeads.length > 0 && selectedDiscoveredIds.size === discoveredLeads.length}
+                  onChange={handleToggleSelectAllDiscovered}
+                  className="w-4 h-4 border-2 border-border bg-card text-[#ea580c] focus:ring-0 focus:outline-none cursor-pointer"
+                />
+              </div>
+              <div className="col-span-3 text-foreground">Company</div>
+              <div className="col-span-2">Job Title</div>
+              <div className="col-span-2">Location</div>
+              <div className="col-span-2">Website</div>
+              <div className="col-span-2">Contact Email</div>
+              <div className="col-span-1 text-right">Source</div>
+            </div>
+
+            {/* Table Header / Selection Bar (Mobile only) */}
+            <div className="flex md:hidden items-center justify-between px-4 py-3 border-b-2 border-border bg-foreground/[0.02] font-mono text-[11px]">
+              <label className="flex items-center gap-2.5 font-bold uppercase tracking-wider cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={discoveredLeads.length > 0 && selectedDiscoveredIds.size === discoveredLeads.length}
+                  onChange={handleToggleSelectAllDiscovered}
+                  className="w-4 h-4 border-2 border-border bg-card text-[#ea580c] focus:ring-0 focus:outline-none cursor-pointer"
+                />
+                Select All
+              </label>
+              <span className="font-bold text-muted-foreground uppercase text-[10px]">
+                {selectedDiscoveredIds.size} / {discoveredLeads.length} Selected
+              </span>
+            </div>
+
+            {/* Table Body / Rows */}
+            <div className="divide-y divide-border">
+              {discoveredLeads.map((job) => {
+                const isSelected = selectedDiscoveredIds.has(job.jobUrl);
+                return (
+                  <div
+                    key={job.jobUrl}
+                    onClick={() => handleToggleSelectDiscovered(job.jobUrl)}
+                    className={`grid grid-cols-12 gap-3 md:gap-4 py-3.5 px-4 items-start md:items-center transition-colors cursor-pointer ${
+                      isSelected ? "bg-[#ea580c]/5 hover:bg-[#ea580c]/10" : "hover:bg-foreground/[0.01]"
+                    }`}
+                  >
+                    {/* Checkbox Column */}
+                    <div className="col-span-1 flex items-center justify-start md:justify-center pt-0.5 md:pt-0">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleSelectDiscovered(job.jobUrl)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 border-2 border-border bg-card text-[#ea580c] focus:ring-0 focus:outline-none cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Mobile Layout */}
+                    <div className="col-span-11 md:hidden flex flex-col gap-1 min-w-0 font-mono text-[11px]">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="font-extrabold text-[12px] uppercase tracking-wide truncate text-foreground">
+                          {job.companyName}
+                        </span>
+                        <span className="text-[9px] font-bold border border-border bg-foreground/[0.04] px-1.5 py-0.5 uppercase tracking-wider rounded-none shrink-0">
+                          {job.source}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+                        <span className="font-medium text-foreground truncate max-w-[170px]">{job.jobTitle}</span>
+                        <span className="text-border/50">•</span>
+                        <span className="uppercase text-[10px]">{job.location}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-border/30">
+                        {job.contactEmail ? (
+                          <div className="flex items-center gap-1 truncate max-w-[65%]" onClick={(e) => e.stopPropagation()}>
+                            <span className="font-bold select-all truncate text-foreground">{job.contactEmail}</span>
+                            {job.emailVerified ? (
+                              <span className="text-emerald-400 text-[8px] border border-emerald-400/30 bg-emerald-400/5 px-1 font-bold uppercase rounded-none shrink-0">
+                                ✓
+                              </span>
+                            ) : (
+                              <span className="text-amber-400 text-[8px] border border-amber-400/30 bg-amber-400/5 px-1 font-bold uppercase rounded-none shrink-0">
+                                ?
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic">no email found</span>
+                        )}
+                        <div className="truncate max-w-[32%]">
+                          {job.website ? (
+                            <a
+                              href={job.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[#ea580c] hover:underline font-bold truncate block"
+                            >
+                              {cleanWebsiteUrl(job.website)}
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground italic">no site</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Desktop Columns */}
+                    <div className="hidden md:block col-span-3 font-bold uppercase tracking-wide truncate">
+                      {job.companyName}
+                    </div>
+                    <div className="hidden md:block col-span-2 text-foreground truncate">
+                      {job.jobTitle}
+                    </div>
+                    <div className="hidden md:block col-span-2 text-muted-foreground uppercase truncate">
+                      {job.location}
+                    </div>
+                    <div className="hidden md:block col-span-2 truncate">
+                      {job.website ? (
+                        <a
+                          href={job.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[#ea580c] hover:underline break-all"
+                        >
+                          {cleanWebsiteUrl(job.website)}
+                        </a>
+                      ) : isDiscovering ? (
+                        <span className="text-muted-foreground italic flex items-center gap-1">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ea580c]" />
+                          resolving...
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground italic">not found</span>
+                      )}
+                    </div>
+                    <div className="hidden md:block col-span-2 truncate" onClick={(e) => e.stopPropagation()}>
+                      {job.contactEmail ? (
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="font-bold select-all truncate">{job.contactEmail}</span>
+                          {job.emailVerified ? (
+                            <span className="text-emerald-400 font-bold uppercase text-[9px] border border-emerald-400/30 bg-emerald-400/5 px-1 rounded-none shrink-0">
+                              verified
+                            </span>
+                          ) : (
+                            <span className="text-amber-400 font-bold uppercase text-[9px] border border-amber-400/30 bg-amber-400/5 px-1 rounded-none shrink-0">
+                              unverified
+                            </span>
+                          )}
+                        </div>
+                      ) : isDiscovering ? (
+                        <span className="text-muted-foreground italic flex items-center gap-1">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ea580c]" />
+                          harvesting...
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground italic">not found</span>
+                      )}
+                    </div>
+                    <div className="hidden md:block col-span-1 text-right">
+                      <span className="text-[9px] font-bold border border-border bg-foreground/[0.04] px-1.5 py-0.5 uppercase tracking-wider rounded-none">
+                        {job.source}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="p-8 border-2 border-border border-dashed text-center bg-foreground/[0.01]">
+            <p className="text-muted-foreground text-xs uppercase font-bold">No jobs discovered in this session.</p>
+            <p className="text-[10px] text-muted-foreground mt-1 uppercase">Adjust your query above and search to find more targets.</p>
+          </div>
+        )}
       </div>
     );
   };
@@ -1046,7 +1553,39 @@ If any check fails → fix the affected records before outputting <final>.`;
         <div className="space-y-6 animate-fade-in">
           {renderConfigStatus()}
 
-          <div className="grid lg:grid-cols-2 gap-6">
+          {/* Brutalist Tab Selection */}
+          <div className="flex border-b-2 border-border mb-6">
+            <button
+              onClick={() => setUploadTab("upload")}
+              className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-none cursor-pointer transition-colors ${
+                uploadTab === "upload"
+                  ? "border-t-2 border-x-2 border-border border-b-background -mb-[2px] bg-card text-[#ea580c]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Upload Lead JSON
+            </button>
+            <button
+              onClick={() => {
+                const isPaid = userConfig && (userConfig.plan !== "free" || userConfig.plan === "admin");
+                if (isPaid) {
+                  setUploadTab("discover");0
+                } else {
+                  setShowUpgradeModal(true);
+                }
+              }}
+              className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-none cursor-pointer transition-colors ${
+                uploadTab === "discover"
+                  ? "border-t-2 border-x-2 border-border border-b-background -mb-[2px] bg-card text-[#ea580c]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Auto Discover Leads
+            </button>
+          </div>
+
+          {uploadTab === "upload" ? (
+            <div className="grid lg:grid-cols-2 gap-6">
             <div className="flex flex-col gap-3">
               <FileUpload
                 type="json"
@@ -1510,7 +2049,7 @@ If any check fails → fix the affected records before outputting <final>.`;
                 <div className="w-12 h-12 border-2 border-emerald-400 bg-emerald-400/5 text-emerald-400 flex items-center justify-center mb-3 rounded-none">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground mb-1">Persistent Resume Active</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground mb-1">Resume</h3>
                 <p className="text-[10px] text-muted-foreground mb-4 uppercase">{userConfig.savedResume.fileName}</p>
                 <button
                   onClick={() => setUseSavedResume(false)}
@@ -1528,8 +2067,210 @@ If any check fails → fix the affected records before outputting <final>.`;
               />
             )}
           </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Job Designation / Search Query
+                  </label>
+                  <input
+                    type="text"
+                    value={discoverQuery}
+                    onChange={(e) => setDiscoverQuery(e.target.value)}
+                    placeholder="e.g. React Developer"
+                    className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono text-foreground"
+                    disabled={isDiscovering}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Target Location
+                  </label>
+                  <input
+                    type="text"
+                    value={discoverLocation}
+                    onChange={(e) => setDiscoverLocation(e.target.value)}
+                    placeholder="e.g. Mumbai, Bangalore, Remote"
+                    className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono text-foreground"
+                    disabled={isDiscovering}
+                  />
+                </div>
+              </div>
 
-          {leads.length > 0 && (
+              <div className="flex justify-between items-center mt-3">
+                <div className="flex flex-col gap-1.5">
+                  {isDiscovering && (
+                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[#ea580c]">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>{discoveryStatus}</span>
+                    </div>
+                  )}
+                  {userConfig && typeof userConfig.discoveryRemaining === "number" && (
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Monthly Queries Remaining: <span className="text-[#ea580c]">{userConfig.discoveryRemaining}</span> / {userConfig.discoveryLimit}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+  {isDiscovering && (
+    <button
+      onClick={() => {
+        setIsPollingDiscovery(false);
+        setIsDiscovering(false);
+        setDiscoveryStatus("Stopped by user.");
+      }}
+      className="
+        w-full sm:w-auto
+        px-4 py-2
+        border-2 border-red-500/30 hover:border-red-500
+        text-red-500 bg-card
+        text-xs font-bold uppercase tracking-widest
+        transition-colors rounded-none cursor-pointer
+      "
+    >
+      Cancel Search
+    </button>
+  )}
+
+  <button
+    onClick={handleStartDiscovery}
+    disabled={isDiscovering || !discoverQuery.trim()}
+    className="
+      w-full sm:w-auto
+      px-5 py-3
+      bg-foreground text-background
+      text-xs font-bold uppercase tracking-widest
+      hover:bg-[#ea580c] hover:text-background
+      disabled:opacity-50
+      transition-colors rounded-none cursor-pointer
+    "
+  >
+    {isDiscovering ? "Searching..." : "Start Sourcing"}
+  </button>
+
+  {/* Find More Leads — force refresh, burns 1 quota credit */}
+  {discoveredLeads.length > 0 && !isDiscovering && (
+    <button
+      onClick={handleFindMoreLeads}
+      disabled={isDiscovering || !discoverQuery.trim()}
+      className="
+        w-full sm:w-auto
+        px-4 py-2.5
+        border-2 border-[#ea580c]/30 hover:border-[#ea580c]
+        text-[#ea580c] bg-card
+        text-xs font-bold uppercase tracking-widest
+        hover:bg-[#ea580c]/5
+        disabled:opacity-50
+        transition-colors rounded-none cursor-pointer
+        flex items-center justify-center gap-1.5
+      "
+      title="Uses 1 quota credit to fetch the next page of results from job boards"
+    >
+      <ArrowRight className="w-3.5 h-3.5" />
+      Find More Leads
+    </button>
+  )}
+</div>
+              </div>
+
+              {/* Sourcing Sub-Tabs or Sourced Targets List */}
+              {(discoveredLeads.length > 0 || leads.length > 0) && (
+                <div className="space-y-3 mt-6 animate-fade-in">
+                  {leads.length > 0 ? (
+                    <>
+                      {/* Sub-tab Headers */}
+                      <div className="flex border-b-2 border-border mb-4 font-mono">
+                        <button
+                          type="button"
+                          onClick={() => setSourcingSubTab("jobs")}
+                          className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-t-2 border-l-2 border-r-2 border-b-0 -mb-[2px] transition-colors rounded-none cursor-pointer ${
+                            sourcingSubTab === "jobs"
+                              ? "border-border bg-card text-[#ea580c]"
+                              : "border-transparent text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Jobs ({discoveredLeads.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSourcingSubTab("leads")}
+                          className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-t-2 border-l-2 border-r-2 border-b-0 -mb-[2px] ml-1 transition-colors rounded-none cursor-pointer ${
+                            sourcingSubTab === "leads"
+                              ? "border-border bg-card text-[#ea580c]"
+                              : "border-transparent text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Leads ({leads.length})
+                        </button>
+                      </div>
+
+                      {/* Sub-tab Contents */}
+                      {sourcingSubTab === "jobs" ? (
+                        renderJobsList()
+                      ) : (
+                        /* Leads List Content */
+                        <div className="space-y-3 animate-fade-in font-mono">
+                          {alreadySent.size > 0 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-2 border-amber-500/30 bg-amber-500/5 text-xs font-mono rounded-none animate-fade-in">
+                              <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider">
+                                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                <span>
+                                  {alreadySent.size} target {alreadySent.size === 1 ? "email is" : "emails are"} already contacted
+                                </span>
+                              </div>
+                              <button
+                                onClick={handleRemoveAlreadySent}
+                                className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-500/30 hover:border-amber-400 bg-card text-amber-400 text-[10px] font-bold uppercase tracking-wider rounded-none cursor-pointer transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Remove Contacted
+                              </button>
+                            </div>
+                          )}
+                          {invalidEmails.size > 0 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-2 border-red-500/30 bg-red-500/5 text-xs font-mono rounded-none animate-fade-in">
+                              <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider">
+                                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                <span>
+                                  {invalidEmails.size} target {invalidEmails.size === 1 ? "email has" : "emails have"} invalid domain MX records
+                                </span>
+                              </div>
+                              <button
+                                onClick={handleRemoveInvalid}
+                                className="flex items-center gap-1.5 px-3 py-1.5 border border-red-500/30 hover:border-red-400 bg-card text-red-400 text-[10px] font-bold uppercase tracking-wider rounded-none cursor-pointer transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Remove Invalid
+                              </button>
+                            </div>
+                          )}
+                          {checkingSent || isVerifying ? (
+                            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground py-1 font-mono">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ea580c]" />
+                              Scanning outbox records and resolving MX routes...
+                            </div>
+                          ) : null}
+                          <CompanyTable
+                            leads={leads}
+                            alreadySent={alreadySent}
+                            invalidEmails={invalidEmails}
+                            onEdit={setEditingLead}
+                            onDelete={handleDeleteLead}
+                          />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* If no leads imported yet, show Jobs content directly without tabs */
+                    renderJobsList()
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {leads.length > 0 && uploadTab === "upload" && (
             <>
               {alreadySent.size > 0 && (
                 <div className="flex items-center justify-between px-4 py-3 border-2 border-amber-500/30 bg-amber-500/5 text-xs font-mono rounded-none animate-fade-in mb-3">
@@ -1849,6 +2590,45 @@ If any check fails → fix the affected records before outputting <final>.`;
                 className="flex-1 py-2.5 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest text-muted-foreground transition-all cursor-pointer bg-card rounded-none"
               >
                 Stay Here
+              </button>
+              <button
+                onClick={() => {
+                  window.location.href = "/dashboard/billing";
+                }}
+                className="flex-1 py-2.5 bg-foreground text-background text-xs font-bold uppercase tracking-widest hover:bg-[#ea580c] hover:text-background transition-all cursor-pointer rounded-none"
+              >
+                Upgrade Plan
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Custom Upgrade Modal for Leads Discovery (Portal) */}
+      {showUpgradeModal && mounted && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fade-in font-mono text-xs text-foreground font-bold">
+          <div className="bg-card border-2 border-border w-full max-w-md overflow-hidden shadow-2xl flex flex-col rounded-none">
+            <div className="p-6 text-center">
+              <div className="w-10 h-10 border-2 border-[#ea580c] bg-[#ea580c]/5 text-[#ea580c] flex items-center justify-center mx-auto mb-4 rounded-none">
+                <Settings className="w-5 h-5 animate-spin" />
+              </div>
+              <h3 className="font-bold text-sm uppercase tracking-wider text-foreground mb-2">Premium Feature Locked</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed normal-case font-normal">
+                Leads Discovery is a premium feature. Upgrade to <span className="font-bold text-foreground">Starter</span>, <span className="font-bold text-foreground">Pro</span>, or <span className="font-bold text-foreground">Enterprise</span> plan to automatically search, scrape websites, resolve domains, and harvest verified contacts.
+              </p>
+              <div className="mt-4 p-3 border border-border bg-foreground/[0.01] text-left space-y-1.5 text-[10px] text-muted-foreground uppercase font-bold tracking-wide">
+                <p>✓ Starter: 30 Sourcing queries / month</p>
+                <p>✓ Pro: 90 Sourcing queries / month</p>
+                <p>✓ Enterprise: 500 Sourcing queries / month</p>
+              </div>
+            </div>
+            <div className="p-4 border-t-2 border-border bg-foreground/[0.01] flex items-center gap-3">
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 py-2.5 border-2 border-border hover:border-foreground/20 text-xs font-bold uppercase tracking-widest text-muted-foreground transition-all cursor-pointer bg-card rounded-none"
+              >
+                Cancel
               </button>
               <button
                 onClick={() => {

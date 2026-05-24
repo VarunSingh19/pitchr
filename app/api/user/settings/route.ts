@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { dbConnect } from "@/lib/db";
 import User from "@/models/User";
+import LeadsDiscoveryLog from "@/models/LeadsDiscoveryLog";
 import { verifyOrigin, forbiddenResponse } from "@/lib/auth-helpers";
 import { isValidModel } from "@/lib/models-config";
 
@@ -22,8 +23,30 @@ export async function GET() {
     });
   }
 
+  // Calculate monthly search count for leads discovery using calendar month
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const searchCount = await LeadsDiscoveryLog.countDocuments({
+    userId: user._id,
+    createdAt: { $gte: monthStart },
+  });
+
+  let searchLimit = 0;
+  if (user.role === "admin") {
+    searchLimit = 9999;
+  } else if (user.plan === "starter") {
+    searchLimit = 30;
+  } else if (user.plan === "pro") {
+    searchLimit = 90;
+  } else if (user.plan === "enterprise") {
+    searchLimit = 500;
+  }
+
+  const discoveryRemaining = Math.max(0, searchLimit - searchCount);
+
   return Response.json({
     selectedModel: user.selectedModel,
+    plan: user.plan || "free",
     gmailConfigured: user.gmailConfig?.validated ?? false,
     gmailConfig: user.gmailConfig
       ? {
@@ -45,6 +68,8 @@ export async function GET() {
       researcherLocation: "Mumbai, Maharashtra",
       hasConfigured: false,
     },
+    discoveryRemaining,
+    discoveryLimit: searchLimit,
   });
 }
 

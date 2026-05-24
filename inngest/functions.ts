@@ -13,6 +13,68 @@ export const generateSingleEmail = inngest.createFunction(
     id: "generate-single-email",
     retries: 5,
     triggers: [{ event: "campaign/generate.email" }],
+    onFailure: async ({ event, error, step }) => {
+      const origEvent = event.data.event;
+      const { campaignId, lead, userId } = origEvent.data;
+      const errMsg = error?.message || String(error);
+
+      // 1. Mark this specific email log as FAILED in database
+      await step.run("mark-log-failed", async () => {
+        await dbConnect();
+        
+        const filter = {
+          campaignId: new Types.ObjectId(campaignId),
+          recipientEmail: lead.contact_email,
+          companyName: lead.company,
+        };
+
+        await EmailLog.findOneAndUpdate(
+          filter,
+          {
+            $set: {
+              status: "FAILED",
+              generationError: errMsg,
+            },
+          }
+        );
+      });
+
+      // 2. Increment failedCount in Campaign
+      await step.run("inc-campaign-failed-count", async () => {
+        await dbConnect();
+        await Campaign.findByIdAndUpdate(campaignId, {
+          $inc: { failedCount: 1 }
+        });
+      });
+
+      // 3. Check if this was the last lead, and transition campaign status
+      await step.run("check-campaign-complete-on-failure", async () => {
+        await dbConnect();
+
+        const campaign = await Campaign.findById(campaignId);
+        if (!campaign || campaign.status !== "GENERATING") return;
+
+        const doneCount = await EmailLog.countDocuments({
+          campaignId: new Types.ObjectId(campaignId),
+          status: { $in: ["GENERATED", "FAILED", "SENT", "BOUNCED"] },
+        });
+
+        if (doneCount >= campaign.totalLeads) {
+          const nextStatus = campaign.autoSend ? "SENDING" : "READY";
+          const transitioned = await Campaign.findOneAndUpdate(
+            { _id: campaignId, status: "GENERATING" },
+            { status: nextStatus }
+          );
+
+          if (transitioned && campaign.autoSend) {
+            await inngest.send({
+              name: "campaign/auto-send",
+              data: { campaignId, userId },
+            });
+          }
+        }
+      });
+    }
   },
   async ({ event, step }) => {
     const { campaignId, lead, userId, resumeText, userName } = event.data;
@@ -68,36 +130,127 @@ export const generateSingleEmail = inngest.createFunction(
       return { message: "Already generated or in progress", logId };
     }
 
-    // Check system blacklist
-    const blacklistCheck = await step.run("check-blacklist", async () => {
-      await dbConnect();
-      const SystemBlacklist = (await import("@/models/SystemBlacklist")).default;
-      const emailNormalized = String(lead.contact_email || "").trim().toLowerCase();
-      const domain = emailNormalized.split("@")[1] || "";
-      
-      const exists = await SystemBlacklist.findOne({
-        domainOrEmail: { $in: [emailNormalized, domain] }
-      }).lean();
-
-      return !!exists;
-    });
-
-    if (blacklistCheck) {
-      await step.run("handle-blacklisted-email", async () => {
+    try {
+      // Check system blacklist
+      const blacklistCheck = await step.run("check-blacklist", async () => {
         await dbConnect();
-        await EmailLog.findByIdAndUpdate(logId, {
-          status: "FAILED",
-          error: "Skipped: Recipient email or domain is blocklisted system-wide.",
-          generationError: "Skipped: Recipient email or domain is blocklisted system-wide.",
+        const SystemBlacklist = (await import("@/models/SystemBlacklist")).default;
+        const emailNormalized = String(lead.contact_email || "").trim().toLowerCase();
+        const domain = emailNormalized.split("@")[1] || "";
+        
+        const exists = await SystemBlacklist.findOne({
+          domainOrEmail: { $in: [emailNormalized, domain] }
+        }).lean();
+
+        return !!exists;
+      });
+
+      if (blacklistCheck) {
+        await step.run("handle-blacklisted-email", async () => {
+          await dbConnect();
+          await EmailLog.findByIdAndUpdate(logId, {
+            status: "FAILED",
+            error: "Skipped: Recipient email or domain is blocklisted system-wide.",
+            generationError: "Skipped: Recipient email or domain is blocklisted system-wide.",
+          });
+
+          // Increment campaign failedCount
+          await Campaign.findByIdAndUpdate(campaignId, {
+            $inc: { failedCount: 1 }
+          });
         });
 
-        // Increment campaign failedCount
-        await Campaign.findByIdAndUpdate(campaignId, {
-          $inc: { failedCount: 1 }
+        // Still check campaign completion in case this was the last lead!
+        await step.run("check-campaign-complete", async () => {
+          await dbConnect();
+
+          const campaign = await Campaign.findById(campaignId);
+          if (!campaign || campaign.status !== "GENERATING") return;
+
+          const doneCount = await EmailLog.countDocuments({
+            campaignId: new Types.ObjectId(campaignId),
+            status: { $in: ["GENERATED", "FAILED", "SENT", "BOUNCED"] },
+          });
+
+          if (doneCount >= campaign.totalLeads) {
+            const nextStatus = campaign.autoSend ? "SENDING" : "READY";
+            const transitioned = await Campaign.findOneAndUpdate(
+              { _id: campaignId, status: "GENERATING" },
+              { status: nextStatus }
+            );
+
+            if (transitioned && campaign.autoSend) {
+              await inngest.send({
+                name: "campaign/auto-send",
+                data: { campaignId, userId },
+              });
+            }
+          }
+        });
+
+        return { success: false, reason: "Blacklisted", logId };
+      }
+
+      // Fetch the user's selected model — the key comes from the system pool
+      const modelId = await step.run("fetch-user-model", async () => {
+        await dbConnect();
+
+        const user = await User.findById(userId);
+        if (!user) throw new Error("User not found");
+
+        const { resolveUserSelectedModel } = await import("@/lib/quota");
+        return resolveUserSelectedModel(user);
+      });
+
+      const body = await step.run("generate-email-body", async () => {
+        const stackStr = Array.isArray(lead.stack)
+          ? lead.stack.join(", ")
+          : lead.stack || "Not specified";
+
+        return pooledGenerateEmailBody(
+          {
+            userName,
+            resumeText,
+            company: lead.company,
+            role: lead.role,
+            description: lead.description || "",
+            stack: stackStr,
+            fitScore: String(lead.fit_score || ""),
+          },
+          modelId,
+          userId,
+          campaignId
+        );
+      });
+
+      const subject = await step.run("generate-subject-line", async () => {
+        const stackStr = Array.isArray(lead.stack)
+          ? lead.stack.join(", ")
+          : lead.stack || "Not specified";
+
+        return pooledGenerateSubjectLine(
+          lead.company,
+          lead.role,
+          stackStr,
+          userName,
+          modelId,
+          userId,
+          campaignId
+        );
+      });
+
+      await step.run("save-generated-email", async () => {
+        await dbConnect();
+
+        await EmailLog.findByIdAndUpdate(logId, {
+          subject,
+          body,
+          status: "GENERATED",
+          generationError: null,
         });
       });
 
-      // Still check campaign completion in case this was the last lead!
+      // Check if all emails in this campaign are now done
       await step.run("check-campaign-complete", async () => {
         await dbConnect();
 
@@ -110,12 +263,14 @@ export const generateSingleEmail = inngest.createFunction(
         });
 
         if (doneCount >= campaign.totalLeads) {
+          // Atomic transition — only ONE concurrent worker can succeed
           const nextStatus = campaign.autoSend ? "SENDING" : "READY";
           const transitioned = await Campaign.findOneAndUpdate(
             { _id: campaignId, status: "GENERATING" },
             { status: nextStatus }
           );
 
+          // Only the winner fires auto-send
           if (transitioned && campaign.autoSend) {
             await inngest.send({
               name: "campaign/auto-send",
@@ -125,99 +280,10 @@ export const generateSingleEmail = inngest.createFunction(
         }
       });
 
-      return { success: false, reason: "Blacklisted", logId };
+      return { success: true, logId };
+    } catch (err: any) {
+      throw err;
     }
-
-    // Fetch the user's selected model — the key comes from the system pool
-    const modelId = await step.run("fetch-user-model", async () => {
-      await dbConnect();
-
-      const user = await User.findById(userId);
-      if (!user) throw new Error("User not found");
-
-      const { resolveUserSelectedModel } = await import("@/lib/quota");
-      return resolveUserSelectedModel(user);
-    });
-
-    const body = await step.run("generate-email-body", async () => {
-      const stackStr = Array.isArray(lead.stack)
-        ? lead.stack.join(", ")
-        : lead.stack || "Not specified";
-
-      return pooledGenerateEmailBody(
-        {
-          userName,
-          resumeText,
-          company: lead.company,
-          role: lead.role,
-          description: lead.description || "",
-          stack: stackStr,
-          fitScore: String(lead.fit_score || ""),
-        },
-        modelId,
-        userId,
-        campaignId
-      );
-    });
-
-    const subject = await step.run("generate-subject-line", async () => {
-      const stackStr = Array.isArray(lead.stack)
-        ? lead.stack.join(", ")
-        : lead.stack || "Not specified";
-
-      return pooledGenerateSubjectLine(
-        lead.company,
-        lead.role,
-        stackStr,
-        userName,
-        modelId,
-        userId,
-        campaignId
-      );
-    });
-
-    await step.run("save-generated-email", async () => {
-      await dbConnect();
-
-      await EmailLog.findByIdAndUpdate(logId, {
-        subject,
-        body,
-        status: "GENERATED",
-        generationError: null,
-      });
-    });
-
-    // Check if all emails in this campaign are now done
-    await step.run("check-campaign-complete", async () => {
-      await dbConnect();
-
-      const campaign = await Campaign.findById(campaignId);
-      if (!campaign || campaign.status !== "GENERATING") return;
-
-      const doneCount = await EmailLog.countDocuments({
-        campaignId: new Types.ObjectId(campaignId),
-        status: { $in: ["GENERATED", "FAILED", "SENT", "BOUNCED"] },
-      });
-
-      if (doneCount >= campaign.totalLeads) {
-        // Atomic transition — only ONE concurrent worker can succeed
-        const nextStatus = campaign.autoSend ? "SENDING" : "READY";
-        const transitioned = await Campaign.findOneAndUpdate(
-          { _id: campaignId, status: "GENERATING" },
-          { status: nextStatus }
-        );
-
-        // Only the winner fires auto-send
-        if (transitioned && campaign.autoSend) {
-          await inngest.send({
-            name: "campaign/auto-send",
-            data: { campaignId, userId },
-          });
-        }
-      }
-    });
-
-    return { success: true, logId };
   }
 );
 
@@ -696,5 +762,116 @@ export const verifyDelivery = inngest.createFunction(
       campaignId,
       bounced: updateResult.bounced,
     };
+  }
+);
+
+async function enrichAndSaveJob(job: any, query: string) {
+  const JobLead = (await import("@/models/JobLead")).default;
+  const { resolveDomain } = await import("@/lib/services/domain-resolver");
+  const { scrapeEmailsFromWebsite, verifyEmail } = await import("@/lib/services/email-scraper");
+
+  let websiteUrl = null;
+  let contactEmail = null;
+  let emailSource = null;
+  let emailVerified = false;
+
+  try {
+    websiteUrl = await resolveDomain(job.companyName);
+    if (websiteUrl) {
+      const scrapeRes = await scrapeEmailsFromWebsite(websiteUrl);
+      if (scrapeRes.emails && scrapeRes.emails.length > 0) {
+        // Try to find a verified email
+        for (const email of scrapeRes.emails) {
+          const isVerified = await verifyEmail(email);
+          if (isVerified) {
+            contactEmail = email;
+            emailSource = scrapeRes.source;
+            emailVerified = true;
+            break;
+          }
+        }
+        // Fallback to first if none verified
+        if (!contactEmail) {
+          contactEmail = scrapeRes.emails[0];
+          emailSource = scrapeRes.source;
+          emailVerified = false;
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`Error enriching job for ${job.companyName}:`, err);
+  }
+
+  const payload = {
+    searchQuery: query,
+    source: job.source,
+    jobTitle: job.jobTitle,
+    companyName: job.companyName,
+    website: websiteUrl,
+    location: job.location,
+    description: job.description,
+    contactEmail,
+    emailSource,
+    emailVerified,
+    postingDate: job.postingDate || new Date(),
+    status: "discovered",
+  };
+
+  try {
+    const updated = await JobLead.findOneAndUpdate(
+      { jobUrl: job.jobUrl },
+      { $set: payload },
+      { upsert: true, returnDocument: "after" }
+    );
+    return updated;
+  } catch (dbErr) {
+    console.error(`Error saving JobLead in DB for ${job.companyName}:`, dbErr);
+    return null;
+  }
+}
+
+export const discoverLeads = inngest.createFunction(
+  {
+    id: "discover-leads",
+    retries: 2,
+    triggers: [{ event: "leads/discover" }],
+  },
+  async ({ event, step }) => {
+    const { query, location } = event.data;
+
+    // Step 1: Fetch candidate jobs
+    const jobs = await step.run("fetch-jobs", async () => {
+      const { searchAllJobBoards } = await import("@/lib/services/job-discovery");
+      return searchAllJobBoards(query, location);
+    });
+
+    if (!jobs || jobs.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // Step 2: Batch the jobs in groups of 5 and run enrichment
+    const batchSize = 5;
+    const enrichedResults = [];
+
+    for (let i = 0; i < jobs.length; i += batchSize) {
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const batch = jobs.slice(i, i + batchSize);
+
+      const batchResult = await step.run(`enrich-batch-${batchNumber}`, async () => {
+        const { dbConnect } = await import("@/lib/db");
+        await dbConnect();
+
+        // Run enrichments in parallel
+        return Promise.all(
+          batch.map((job) => enrichAndSaveJob(job, query))
+        );
+      });
+      
+      if (batchResult) {
+        enrichedResults.push(...batchResult);
+      }
+    }
+
+    return { success: true, count: enrichedResults.length };
   }
 );

@@ -19,12 +19,77 @@ export function ThemeToggle() {
 
   const isDark = theme === "dark"
 
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const nextTheme = isDark ? "light" : "dark"
+    const doc = typeof document !== "undefined" ? (document as any) : null
+
+    if (
+      !doc ||
+      !doc.startViewTransition ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setTheme(nextTheme)
+      return
+    }
+
+    const x = e.clientX
+    const y = e.clientY
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    )
+
+    const isDarkToLight = isDark
+
+    if (isDarkToLight) {
+      doc.documentElement.classList.add("dark-to-light-transition")
+    }
+
+    const transition = doc.startViewTransition(() => {
+      setTheme(nextTheme)
+      if (typeof document !== "undefined") {
+        const root = document.documentElement
+        if (nextTheme === "dark") {
+          root.classList.add("dark")
+        } else {
+          root.classList.remove("dark")
+        }
+      }
+    })
+
+    transition.ready.then(() => {
+      const clipPath = [
+        `circle(0px at ${x}px ${y}px)`,
+        `circle(${endRadius}px at ${x}px ${y}px)`,
+      ]
+
+      doc.documentElement.animate(
+        {
+          clipPath: isDarkToLight ? [...clipPath].reverse() : clipPath,
+        },
+        {
+          duration: 750, // Cinematic transition speed
+          easing: "ease-in-out",
+          pseudoElement: isDarkToLight
+            ? "::view-transition-old(root)"
+            : "::view-transition-new(root)",
+        }
+      )
+    })
+
+    transition.finished.then(() => {
+      if (isDarkToLight) {
+        doc.documentElement.classList.remove("dark-to-light-transition")
+      }
+    })
+  }
+
   return (
     <motion.button
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.92 }}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="relative w-8 h-8 flex items-center justify-center border border-foreground/20 bg-background/50 hover:bg-foreground/5 transition-colors duration-200"
+      onClick={handleToggle}
+      className="relative w-8 h-8 flex items-center justify-center border border-foreground/20 bg-background/50 hover:bg-foreground/5 text-foreground transition-colors duration-200"
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
       <AnimatePresence mode="wait" initial={false}>

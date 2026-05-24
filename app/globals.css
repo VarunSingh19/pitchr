@@ -273,3 +273,23 @@ body {
   background-image: radial-gradient(circle, hsl(0 0% 20%) 1px, transparent 1px);
 }
 
+/* ── Theme Switch View Transitions ── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+/* When going Dark -> Light, the old theme (Dark) is on top and shrinks */
+.dark-to-light-transition::view-transition-old(root) {
+  z-index: 9999;
+}
+.dark-to-light-transition::view-transition-new(root) {
+  z-index: 1;
+}

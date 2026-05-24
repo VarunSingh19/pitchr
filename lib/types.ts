@@ -43,3 +43,17 @@ export interface Credentials {
   gmailAddress: string;
   appPassword: string;
 }
+
+export interface DiscoveredJob {
+  source: "jooble" | "adzuna" | "indeed" | "naukri" | "unknown";
+  jobTitle: string;
+  companyName: string;
+  location: string;
+  description: string;
+  postingDate: Date;
+  jobUrl: string;
+  website?: string | null;
+  contactEmail?: string | null;
+  emailVerified?: boolean;
+}
+

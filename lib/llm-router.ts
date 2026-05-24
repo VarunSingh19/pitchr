@@ -59,6 +59,57 @@ export async function getAvailableKey(modelId: string): Promise<PooledKey> {
   );
 
   if (!key) {
+    // Fallback: If all keys are rate-limited, find the one closest to reset (oldest rateLimitedUntil)
+    const fallbackKey = await SystemApiKey.findOne(
+      { isActive: true, supportedModels: modelId },
+      null,
+      { sort: { rateLimitedUntil: 1 } }
+    );
+
+    if (fallbackKey) {
+      const waitMs = fallbackKey.rateLimitedUntil
+        ? Math.max(0, new Date(fallbackKey.rateLimitedUntil).getTime() - Date.now())
+        : 0;
+
+      if (waitMs > 10000) {
+        console.warn(
+          `[llm-router] All keys rate-limited. Key ${fallbackKey._id} requires ${Math.ceil(waitMs / 1000)}s wait (> 10s limit). Throwing 503 for backoff.`
+        );
+        const err = new Error(
+          `AI service temporarily unavailable — all keys rate-limited. Retry in ${Math.ceil(waitMs / 1000)}s.`
+        );
+        (err as any).status = 503;
+        throw err;
+      }
+
+      if (waitMs > 0) {
+        console.log(`[llm-router] All keys rate-limited. Waiting ${waitMs}ms for key ${fallbackKey._id}...`);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+
+      // Now update the key atomically since we are actually using it
+      const updatedKey = await SystemApiKey.findByIdAndUpdate(
+        fallbackKey._id,
+        {
+          $set: { lastUsedAt: new Date() },
+          $inc: { usageCount: 1 },
+        },
+        { returnDocument: "after" }
+      );
+
+      if (!updatedKey) {
+        throw new Error("Key vanished during fallback update");
+      }
+
+      const provider = getProviderForModel(modelId) || updatedKey.provider;
+      return {
+        key: decrypt(updatedKey.key),
+        keyId: updatedKey._id.toString(),
+        provider,
+        modelId,
+      };
+    }
+
     console.warn(
       `[llm-router] No available key for model "${modelId}". All keys may be rate-limited or none are configured.`
     );

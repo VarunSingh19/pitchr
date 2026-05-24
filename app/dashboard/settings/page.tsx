@@ -13,7 +13,7 @@ type SettingsSection = "gmail" | "resume" | "model" | "prompt";
 const SECTIONS = [
   { key: "gmail", label: "Gmail Configuration", icon: Mail, description: "Set up your Gmail app password for sending emails." },
   { key: "resume", label: "Resume Configuration", icon: FileText, description: "Upload a persistent resume for all campaigns." },
-  { key: "model", label: "Model Selection", icon: Sparkles, description: "Choose the default AI model for email generation." },
+  // { key: "model", label: "Model Selection", icon: Sparkles, description: "Choose the default AI model for email generation." },
   { key: "prompt", label: "Prompt Setup", icon: Sliders, description: "Configure custom criteria for your B2B candidate lead lists." },
 ] as const;
 
@@ -85,7 +85,7 @@ export default function SettingsPage() {
                     <div className="pt-4">
                       {key === "gmail" && <GmailSettings />}
                       {key === "resume" && <ResumeSettings />}
-                      {key === "model" && <ModelSelector />}
+                      {/* {key === "model" && <ModelSelector />} */}
                       {key === "prompt" && <PromptSettings />}
                     </div>
                   </div>

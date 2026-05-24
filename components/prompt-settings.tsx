@@ -176,7 +176,7 @@ export function PromptSettings() {
               onChange={(e) => setTargetGeography(e.target.value)}
               placeholder="e.g. Mumbai — specifically Malad and Andheri areas..."
               rows={3}
-              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none resize-none rounded-none"
+              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-foreground text-xs transition-all focus:outline-none resize-none rounded-none"
               required
             />
             <p className="text-[10px] text-muted-foreground">
@@ -194,7 +194,7 @@ export function PromptSettings() {
               value={researcherLocation}
               onChange={(e) => setResearcherLocation(e.target.value)}
               placeholder="e.g. Mumbai, Maharashtra"
-              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
+              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-foreground text-xs transition-all focus:outline-none rounded-none"
               required
             />
             <p className="text-[10px] text-muted-foreground">
@@ -212,7 +212,7 @@ export function PromptSettings() {
               value={minJobAgeDays}
               onChange={(e) => setMinJobAgeDays(parseInt(e.target.value) || 0)}
               min={1}
-              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
+              className="w-full px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-foreground text-xs transition-all focus:outline-none rounded-none"
               required
             />
             <p className="text-[10px] text-muted-foreground">
@@ -237,7 +237,7 @@ export function PromptSettings() {
                 onChange={(e) => setRolesInput(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, rolesInput, setRolesInput, roles, setRoles)}
                 placeholder="Type role and press Enter or comma..."
-                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
+                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-foreground text-xs transition-all focus:outline-none rounded-none"
               />
               <button
                 type="button"
@@ -282,7 +282,7 @@ export function PromptSettings() {
                 onChange={(e) => setStackInput(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, stackInput, setStackInput, stack, setStack)}
                 placeholder="Type skill and press Enter or comma..."
-                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
+                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-foreground text-xs transition-all focus:outline-none rounded-none"
               />
               <button
                 type="button"
@@ -327,7 +327,7 @@ export function PromptSettings() {
                 onChange={(e) => setCompanyInput(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, companyInput, setCompanyInput, companyTypes, setCompanyTypes)}
                 placeholder="Type company type and press Enter or comma..."
-                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-xs transition-all focus:outline-none rounded-none"
+                className="flex-1 px-4 py-3 bg-foreground/[0.01] border-2 border-border focus:border-[#ea580c] text-foreground text-xs transition-all focus:outline-none rounded-none"
               />
               <button
                 type="button"

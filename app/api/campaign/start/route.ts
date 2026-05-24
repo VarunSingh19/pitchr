@@ -30,14 +30,26 @@ export async function POST(request: Request) {
       return Response.json({ error: "Campaign not found" }, { status: 404 });
     }
 
+    // Deduplicate leads by contact_email + company name (case-insensitive) to prevent duplicate outbound emails
+    const uniqueLeadsMap = new Map<string, any>();
+    for (const lead of leads) {
+      const emailNormalized = String(lead.contact_email || "").trim().toLowerCase();
+      const companyNormalized = String(lead.company || "").trim().toLowerCase();
+      const key = `${emailNormalized}::${companyNormalized}`;
+      if (!uniqueLeadsMap.has(key)) {
+        uniqueLeadsMap.set(key, lead);
+      }
+    }
+    const uniqueLeads = Array.from(uniqueLeadsMap.values());
+
     // Check daily/monthly sending limits quota
-    const quotaCheck = await checkUserQuotas(user, leads.length);
+    const quotaCheck = await checkUserQuotas(user, uniqueLeads.length);
     if (!quotaCheck.allowed) {
       return Response.json({ error: quotaCheck.reason }, { status: 403 });
     }
 
     // 1. Prepare events for Inngest
-    const events = leads.map((lead: any) => ({
+    const events = uniqueLeads.map((lead: any) => ({
       name: "campaign/generate.email",
       data: {
         campaignId,
@@ -53,9 +65,9 @@ export async function POST(request: Request) {
 
     // 3. Update Campaign status ONLY after Inngest confirms receipt
     campaign.status = "GENERATING";
-    campaign.totalLeads = leads.length;
+    campaign.totalLeads = uniqueLeads.length;
     campaign.autoSend = autoSend || false;
-    campaign.leads = leads;
+    campaign.leads = uniqueLeads;
     await campaign.save();
 
     return Response.json({ success: true, queuedCount: leads.length });

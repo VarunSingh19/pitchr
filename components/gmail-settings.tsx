@@ -201,7 +201,7 @@ export function GmailSettings() {
             value={address}
             onChange={(e) => { setAddress(e.target.value); setError(""); }}
             placeholder="your.email@gmail.com"
-            className="w-full px-4 py-3 border-2 border-border bg-foreground/[0.02] text-xs font-mono placeholder:text-muted-foreground/50 focus:border-[#ea580c] focus:outline-none transition-colors rounded-none"
+            className="w-full px-4 py-3 border-2 border-border bg-foreground/[0.02] text-foreground text-xs font-mono placeholder:text-muted-foreground/50 focus:border-[#ea580c] focus:outline-none transition-colors rounded-none"
           />
         </div>
 
@@ -217,7 +217,7 @@ export function GmailSettings() {
               onChange={(e) => { setAppPassword(e.target.value.replace(/\s/g, "")); setError(""); }}
               placeholder="16-character app password"
               maxLength={16}
-              className="w-full px-4 py-3 pr-10 border-2 border-border bg-foreground/[0.02] text-xs font-mono placeholder:text-muted-foreground/50 focus:border-[#ea580c] focus:outline-none transition-colors rounded-none"
+              className="w-full px-4 py-3 pr-10 border-2 border-border bg-foreground/[0.02] text-foreground text-xs font-mono placeholder:text-muted-foreground/50 focus:border-[#ea580c] focus:outline-none transition-colors rounded-none"
             />
             <button
               type="button"

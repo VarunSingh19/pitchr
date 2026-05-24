@@ -19,6 +19,8 @@ import {
   CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PlanBadge } from "@/components/plan-badge";
+import { ThemeToggle } from "@/components/landing/theme-toggle";
 
 interface DashboardShellProps {
   user: {
@@ -73,9 +75,7 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
         {/* Logo */}
         <div className="h-14 flex items-center px-3 border-b-2 border-border">
           <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 bg-[#ea580c] flex items-center justify-center flex-shrink-0">
-              <Mail className="w-4 h-4 text-background" />
-            </div>
+            <img src="/icon.png" alt="Pitchr Logo" className="w-8 h-8 object-contain flex-shrink-0" />
             {!collapsed && (
               <span className="font-pixel text-sm tracking-tight whitespace-nowrap text-foreground">
                 PITCHR
@@ -130,17 +130,23 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
           </div>
         )}
 
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="mx-2 mb-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors flex items-center justify-center border border-border"
-        >
-          {collapsed ? (
-            <ChevronRight className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronLeft className="w-3.5 h-3.5" />
-          )}
-        </button>
+        {/* Collapse toggle & Theme toggle */}
+        <div className={cn("mx-2 mb-2 flex items-center gap-2", collapsed ? "flex-col" : "flex-row")}>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className={cn(
+              "p-1.5 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors flex items-center justify-center border border-border",
+              collapsed ? "w-full" : "flex-1"
+            )}
+          >
+            {collapsed ? (
+              <ChevronRight className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronLeft className="w-3.5 h-3.5" />
+            )}
+          </button>
+          <ThemeToggle />
+        </div>
 
         {/* User section */}
         <div className="border-t-2 border-border p-2 space-y-1">
@@ -166,35 +172,7 @@ export function DashboardShell({ user, isImpersonating = false, children }: Dash
                   <p className="text-xs font-mono font-medium truncate text-foreground group-hover:text-[#ea580c] transition-colors">
                     {user.name}
                   </p>
-                  {(() => {
-                    const p = user.plan || "free";
-                    if (p === "starter") {
-                      return (
-                        <span className="px-1.5 py-0.5 text-[7px] font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/30 flex-shrink-0 uppercase tracking-wider">
-                          Starter
-                        </span>
-                      );
-                    }
-                    if (p === "pro") {
-                      return (
-                        <span className="px-1.5 py-0.5 text-[7px] font-mono font-bold bg-[#ea580c]/10 text-[#ea580c] border border-[#ea580c]/30 flex-shrink-0 uppercase tracking-wider">
-                          Pro
-                        </span>
-                      );
-                    }
-                    if (p === "enterprise") {
-                      return (
-                        <span className="px-1.5 py-0.5 text-[7px] font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/30 flex-shrink-0 uppercase tracking-wider animate-pulse">
-                          Ent.
-                        </span>
-                      );
-                    }
-                    return (
-                      <span className="px-1.5 py-0.5 text-[7px] font-mono font-bold bg-foreground/5 text-muted-foreground border border-border flex-shrink-0 uppercase tracking-wider">
-                        Free
-                      </span>
-                    );
-                  })()}
+                  <PlanBadge plan={user.plan || "free"} />
                 </div>
                 <p className="text-[9px] font-mono text-muted-foreground truncate">{user.email}</p>
               </div>

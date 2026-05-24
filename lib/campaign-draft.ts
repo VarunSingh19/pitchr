@@ -8,7 +8,7 @@ import { useEffect, useCallback, useRef } from "react";
 import type { Lead, GeneratedEmail } from "@/lib/types";
 
 const DRAFT_KEY = "pitchr_campaign_draft";
-const DRAFT_VERSION = 1;
+const DRAFT_VERSION = 2;
 
 export interface CampaignDraft {
   version: number;
@@ -20,6 +20,16 @@ export interface CampaignDraft {
   /** Index where generation was paused (so we can resume from here) */
   generationPausedAt: number | null;
   savedAt: string;
+  campaignId: string | null;
+  isGenerating: boolean;
+  isSending: boolean;
+  autoSend: boolean;
+  pollingStatus: {
+    generated: number;
+    failed: number;
+    total: number;
+    status: string;
+  };
 }
 
 /** Save draft to localStorage */
@@ -84,6 +94,11 @@ export function useAutoSaveDraft(
   resumeFileName: string,
   generatedEmails: GeneratedEmail[],
   generationPausedAt: number | null,
+  campaignId: string | null,
+  isGenerating: boolean,
+  isSending: boolean,
+  autoSend: boolean,
+  pollingStatus: CampaignDraft["pollingStatus"],
   isActive: boolean // only save when there's meaningful data
 ) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -97,8 +112,26 @@ export function useAutoSaveDraft(
       resumeFileName,
       generatedEmails,
       generationPausedAt,
+      campaignId,
+      isGenerating,
+      isSending,
+      autoSend,
+      pollingStatus,
     });
-  }, [step, leads, resumeText, resumeFileName, generatedEmails, generationPausedAt, isActive]);
+  }, [
+    step,
+    leads,
+    resumeText,
+    resumeFileName,
+    generatedEmails,
+    generationPausedAt,
+    campaignId,
+    isGenerating,
+    isSending,
+    autoSend,
+    pollingStatus,
+    isActive,
+  ]);
 
   useEffect(() => {
     if (!isActive) return;

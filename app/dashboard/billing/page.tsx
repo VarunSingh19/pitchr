@@ -17,8 +17,10 @@ import {
   Layers,
   HelpCircle,
   Loader2,
+  Target,
 } from "lucide-react";
 import { PLAN_CONFIGS, PlanDetails } from "@/lib/quota-config";
+import { PlanBadge } from "@/components/plan-badge";
 
 interface BillingData {
   plan: "free" | "starter" | "pro" | "enterprise";
@@ -238,9 +240,7 @@ export default function BillingPage() {
         {/* Active plan details */}
         <div className="lg:col-span-4 border-2 border-border bg-card p-6 flex flex-col justify-between relative overflow-hidden rounded-none">
           <div className="space-y-4">
-            <span className="inline-flex items-center px-3 py-1 border border-[#ea580c]/30 bg-[#ea580c]/5 text-[9px] font-bold text-[#ea580c] uppercase tracking-widest rounded-none">
-              {activePlanName}
-            </span>
+            <PlanBadge plan={data.plan} className="text-[9px] px-2.5 py-1 self-start" />
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Active Plan Rate</p>
               <p className="font-pixel text-3xl tracking-tight mt-1.5 text-foreground">
@@ -363,9 +363,12 @@ export default function BillingPage() {
               </span>
             )}
             <div className="space-y-4 font-mono">
-              <div>
-                <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Starter Plan</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Quick validation outreach</p>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Starter Plan</h3>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Quick validation outreach</p>
+                </div>
+                <PlanBadge plan="starter" />
               </div>
               <p className="font-pixel text-2xl text-foreground">
                 ₹199
@@ -383,6 +386,18 @@ export default function BillingPage() {
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>2,000 monthly sending limit</span>
+                </li>
+                <li className="flex items-start gap-2.5 border-2 border-[#ea580c] bg-[#ea580c]/5 p-3 my-2 -mx-1 rounded-none shadow-[2px_2px_0px_0px_rgba(234,88,12,0.15)]">
+                  <Target className="w-4 h-4 text-[#ea580c] flex-shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-[#ea580c] uppercase text-[10px] tracking-wider block">★ Lead Sourcing Engine</span>
+                    <p className="text-[10px] text-foreground/90 font-bold leading-snug">
+                      30 monthly sourcing queries + unlimited cache hits
+                    </p>
+                    <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                      Automated scraping, domain resolution, and MX-verified email harvesting
+                    </p>
+                  </div>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
@@ -417,12 +432,15 @@ export default function BillingPage() {
               </span>
             )}
             <div className="space-y-4 font-mono">
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Pro Outbound</h3>
-                  <Sparkles className="w-3.5 h-3.5 text-[#ea580c] animate-pulse" />
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Pro Outbound</h3>
+                    <Sparkles className="w-3.5 h-3.5 text-[#ea580c] animate-pulse" />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">High-volume personalized outreach</p>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">High-volume personalized outreach</p>
+                <PlanBadge plan="pro" />
               </div>
               <p className="font-pixel text-2xl text-foreground">
                 ₹599
@@ -440,6 +458,18 @@ export default function BillingPage() {
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>10,000 monthly sending limit</span>
+                </li>
+                <li className="flex items-start gap-2.5 border-2 border-[#ea580c] bg-[#ea580c]/5 p-3 my-2 -mx-1 rounded-none shadow-[2px_2px_0px_0px_rgba(234,88,12,0.2)]">
+                  <Target className="w-4 h-4 text-[#ea580c] flex-shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-[#ea580c] uppercase text-[10px] tracking-wider block">★ Lead Sourcing Engine</span>
+                    <p className="text-[10px] text-foreground/90 font-bold leading-snug">
+                      90 monthly sourcing queries + unlimited cache hits
+                    </p>
+                    <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                      Automated scraping, domain resolution, and MX-verified email harvesting
+                    </p>
+                  </div>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
@@ -474,9 +504,12 @@ export default function BillingPage() {
               </span>
             )}
             <div className="space-y-4 font-mono">
-              <div>
-                <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Enterprise</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Uncapped scale for power agencies</p>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Enterprise</h3>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Uncapped scale for power agencies</p>
+                </div>
+                <PlanBadge plan="enterprise" />
               </div>
               <p className="font-pixel text-2xl text-foreground">
                 ₹999
@@ -494,6 +527,18 @@ export default function BillingPage() {
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>50,000 monthly sending limit</span>
+                </li>
+                <li className="flex items-start gap-2.5 border-2 border-purple-500 bg-purple-500/5 p-3 my-2 -mx-1 rounded-none shadow-[2px_2px_0px_0px_rgba(168,85,247,0.2)]">
+                  <Target className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-purple-400 uppercase text-[10px] tracking-wider block">★ Lead Sourcing Engine</span>
+                    <p className="text-[10px] text-foreground/90 font-bold leading-snug">
+                      500 monthly sourcing queries + unlimited cache hits
+                    </p>
+                    <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                      Automated scraping, domain resolution, and MX-verified email harvesting
+                    </p>
+                  </div>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#ea580c]" />
