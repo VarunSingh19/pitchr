@@ -39,6 +39,7 @@ interface PromptConfig {
 interface UserConfig {
   userName: string;
   plan: string;
+  role?: string;
   gmailConfigured: boolean;
   gmailAddress: string;
   selectedModel: string;
@@ -560,6 +561,7 @@ If any check fails → fix the affected records before outputting <final>.`;
         setUserConfig({
           userName: session?.user?.name || "",
           plan: data.plan || "free",
+          role: session?.user?.role || "user",
           gmailConfigured: data.gmailConfigured ?? false,
           gmailAddress: data.gmailConfig?.address || "",
           selectedModel: data.selectedModel || "",
@@ -1567,9 +1569,9 @@ If any check fails → fix the affected records before outputting <final>.`;
             </button>
             <button
               onClick={() => {
-                const isPaid = userConfig && (userConfig.plan !== "free" || userConfig.plan === "admin");
+                const isPaid = userConfig && (userConfig.plan !== "free" || userConfig.role === "admin");
                 if (isPaid) {
-                  setUploadTab("discover");0
+                  setUploadTab("discover");
                 } else {
                   setShowUpgradeModal(true);
                 }
