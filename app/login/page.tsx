@@ -8,6 +8,7 @@ import { motion } from "framer-motion"
 import { ScrambleText } from "@/components/landing/scramble-text"
 import { SectionLabel } from "@/components/landing/section-label"
 import { ThemeToggle } from "@/components/landing/theme-toggle"
+import { Footer } from "@/components/landing/footer"
 
 const ease = [0.22, 1, 0.36, 1] as const
 
@@ -45,10 +46,8 @@ export default function LoginPage() {
         <nav className="w-full border border-foreground/20 bg-background/80 backdrop-blur-md px-6 py-3 lg:px-8">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-6 h-6 bg-[#ea580c] flex items-center justify-center">
-                <Mail className="w-3.5 h-3.5 text-white" />
-              </div>
+            <Link href="/" className="flex items-center gap-2">
+              <img src="/icon.png" alt="Pitchr Logo" className="w-7 h-7 object-contain flex-shrink-0" />
               <span className="text-xs font-mono tracking-[0.15em] uppercase font-bold">
                 PITCHR.AI
               </span>
@@ -233,6 +232,7 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   )
 }
