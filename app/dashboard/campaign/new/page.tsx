@@ -65,8 +65,11 @@ export default function NewCampaignPage() {
   const [sourcingSubTab, setSourcingSubTab] = useState<"jobs" | "leads">("jobs");
   const [discoverQuery, setDiscoverQuery] = useState("");
   const [discoverLocation, setDiscoverLocation] = useState("");
+  const [discoverExperience, setDiscoverExperience] = useState("");
+  const [discoverJobType, setDiscoverJobType] = useState("");
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredLeads, setDiscoveredLeads] = useState<any[]>([]);
+  const [totalDiscoveredCount, setTotalDiscoveredCount] = useState(0);
   const [selectedDiscoveredIds, setSelectedDiscoveredIds] = useState<Set<string>>(new Set());
   const [discoveryStatus, setDiscoveryStatus] = useState("");
   const [isPollingDiscovery, setIsPollingDiscovery] = useState(false);
@@ -681,8 +684,11 @@ If any check fails → fix the affected records before outputting <final>.`;
     setSourcingSubTab("jobs");
     setDiscoverQuery("");
     setDiscoverLocation("");
+    setDiscoverExperience("");
+    setDiscoverJobType("");
     setIsDiscovering(false);
     setDiscoveredLeads([]);
+    setTotalDiscoveredCount(0);
     setSelectedDiscoveredIds(new Set());
     setDiscoveryStatus("");
     setIsPollingDiscovery(false);
@@ -711,12 +717,24 @@ If any check fails → fix the affected records before outputting <final>.`;
   }, []);
 
   // ── Leads Discovery Sourcing & Polling Callbacks ──
+
+  /** Build the enriched query string by appending experience/job-type hints */
+  const buildEnrichedQuery = useCallback((): string => {
+    let q = discoverQuery.trim();
+    if (discoverExperience) q += ` ${discoverExperience}`;
+    if (discoverJobType)    q += ` ${discoverJobType}`;
+    return q;
+  }, [discoverQuery, discoverExperience, discoverJobType]);
+
   const handleStartDiscovery = useCallback(async () => {
     const queryTrimmed = discoverQuery.trim();
     if (!queryTrimmed) return;
 
+    const enrichedQuery = buildEnrichedQuery();
+
     setIsDiscovering(true);
     setDiscoveredLeads([]);
+    setTotalDiscoveredCount(0);
     setSelectedDiscoveredIds(new Set());
     setDiscoveryStatus("Connecting to sourcing agent...");
 
@@ -725,7 +743,7 @@ If any check fails → fix the affected records before outputting <final>.`;
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: queryTrimmed,
+          query: enrichedQuery,
           location: discoverLocation.trim(),
         }),
       });
@@ -747,15 +765,25 @@ If any check fails → fix the affected records before outputting <final>.`;
         toast.info("No new leads found for this query. Try a different search.");
       // Case 2: Unseen results from shared cache (no quota deducted)
       } else if (data.cached && data.leads) {
-        setDiscoveredLeads(data.leads);
-        setSelectedDiscoveredIds(new Set(data.leads.map((l: any) => l.jobUrl)));
+        const allLeads: any[] = data.leads;
+        const withEmail = allLeads.filter((l: any) => l.contactEmail);
+        setTotalDiscoveredCount(allLeads.length);
+        setDiscoveredLeads(withEmail);
+        setSelectedDiscoveredIds(new Set(withEmail.map((l: any) => l.jobUrl)));
         setIsDiscovering(false);
         const cacheLabel = data.fromSharedCache ? "shared cache" : "cache";
-        setDiscoveryStatus(`Loaded ${data.leads.length} new results from ${cacheLabel} — no quota used.`);
-        toast.success(`Found ${data.leads.length} new leads from ${cacheLabel}!`);
+        if (withEmail.length === 0) {
+          setDiscoveryStatus(`Found ${allLeads.length} jobs but none had contact emails yet. Click "Find More Leads" to fetch fresh results.`);
+          toast.info("No contact emails found in this batch. Try fetching more leads.");
+        } else {
+          const filtered = allLeads.length - withEmail.length;
+          const filteredNote = filtered > 0 ? ` (${filtered} without email hidden)` : "";
+          setDiscoveryStatus(`Loaded ${withEmail.length} leads with emails from ${cacheLabel}${filteredNote} — no quota used.`);
+          toast.success(`Found ${withEmail.length} leads with contact emails!`);
+        }
       // Case 3: Background discovery triggered (quota deducted)
       } else if (data.trigger === "inngest" || data.trigger === "background") {
-        setDiscoveryStatus("Starting background discovery agents...");
+        setDiscoveryStatus("Sourcing and enriching leads with contact emails...");
         setIsPollingDiscovery(true);
       }
     } catch (err: any) {
@@ -763,12 +791,14 @@ If any check fails → fix the affected records before outputting <final>.`;
       setIsDiscovering(false);
       toast.error(err.message || "Failed to start discovery");
     }
-  }, [discoverQuery, discoverLocation]);
+  }, [discoverQuery, discoverLocation, buildEnrichedQuery]);
 
   // ── Find More Leads (force refresh — burns 1 quota credit) ──
   const handleFindMoreLeads = useCallback(async () => {
     const queryTrimmed = discoverQuery.trim();
     if (!queryTrimmed) return;
+
+    const enrichedQuery = buildEnrichedQuery();
 
     setIsDiscovering(true);
     setDiscoveryStatus("Fetching next page of results...");
@@ -778,7 +808,7 @@ If any check fails → fix the affected records before outputting <final>.`;
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: queryTrimmed,
+          query: enrichedQuery,
           location: discoverLocation.trim(),
           forceRefresh: true,
         }),
@@ -795,7 +825,7 @@ If any check fails → fix the affected records before outputting <final>.`;
       }
 
       if (data.trigger === "inngest" || data.trigger === "background") {
-        setDiscoveryStatus("Sourcing new leads from job boards...");
+        setDiscoveryStatus("Sourcing and enriching leads with contact emails...");
         setIsPollingDiscovery(true);
       }
     } catch (err: any) {
@@ -803,7 +833,7 @@ If any check fails → fix the affected records before outputting <final>.`;
       setIsDiscovering(false);
       toast.error(err.message || "Failed to fetch more leads");
     }
-  }, [discoverQuery, discoverLocation]);
+  }, [discoverQuery, discoverLocation, buildEnrichedQuery]);
 
   const handleImportSelection = useCallback(() => {
     const selectedJobs = discoveredLeads.filter((l) => selectedDiscoveredIds.has(l.jobUrl));
@@ -868,57 +898,95 @@ If any check fails → fix the affected records before outputting <final>.`;
     toast.success("Unselected targets with missing emails.");
   }, [discoveredLeads]);
 
-  // ── Leads Discovery 3s Polling Effect ──
+  // ── Leads Discovery Polling Effect ──
+  //
+  // Timing rationale:
+  //   • Backend runs enrichment in sequential batches of 5, each batch takes ~15-30s
+  //     (domain resolution + email scraping with ScraperAPI fallback).
+  //   • For 100 jobs that's up to ~3 min total.
+  //   • We poll every 5s and require 8 consecutive stable polls (40s of no growth)
+  //     before declaring "done". Total timeout is 3 min.
+  //   • This ensures we wait long enough for the backend to finish enriching real
+  //     companies while still being responsive when everything IS genuinely done.
   useEffect(() => {
     if (!isPollingDiscovery) return;
 
-    const startTime = Date.now();
-    let lastCount = 0;
-    let noIncreaseStreak = 0;
+    const startTime    = Date.now();
+    const MAX_WAIT_MS  = 3 * 60 * 1000;  // 3 minutes — covers worst-case enrichment
+    const POLL_MS      = 5_000;           // poll every 5s
+    const STABLE_POLLS = 8;               // require 8 consecutive stable polls (40s) before stopping
+
+    let lastCount      = 0;
+    let stableStreak   = 0;
 
     const poll = async () => {
-      if (Date.now() - startTime >= 60000) {
-        console.log("[DiscoverPoll] 60s timeout reached. Stopping.");
+      const elapsed = Date.now() - startTime;
+
+      if (elapsed >= MAX_WAIT_MS) {
+        console.log("[DiscoverPoll] 3-min timeout reached. Stopping.");
         setIsPollingDiscovery(false);
         setIsDiscovering(false);
-        toast.info("Discovery finished (timeout).");
+        const finalCount = lastCount;
+        if (finalCount === 0) {
+          toast.info("Discovery timed out — no contact emails found. Try a different query.");
+        } else {
+          toast.success(`Discovery complete — found ${finalCount} leads with contact emails.`);
+        }
         return;
       }
 
       try {
-        const res = await fetch(`/api/leads/discover?query=${encodeURIComponent(discoverQuery)}`);
+        const res = await fetch(`/api/leads/discover?query=${encodeURIComponent(buildEnrichedQuery())}`);
         if (!res.ok) return;
         const data = await res.json();
-        const leads = data.leads || [];
+        const allLeads = (data.leads ?? []) as { jobUrl: string; contactEmail?: string }[];
+        // Only surface leads that have a contact email
+        const leads = allLeads.filter((l) => l.contactEmail);
 
+        setTotalDiscoveredCount(allLeads.length);
         setDiscoveredLeads(leads);
-        
+
         setSelectedDiscoveredIds((prev) => {
           const next = new Set(prev);
-          leads.forEach((l: any) => {
-            if (!prev.has(l.jobUrl)) {
-              next.add(l.jobUrl);
-            }
+          leads.forEach((l) => {
+            if (!prev.has(l.jobUrl)) next.add(l.jobUrl);
           });
           return next;
         });
 
         const currentCount = leads.length;
-        setDiscoveryStatus(`Sourced ${currentCount} leads so far...`);
+        const hiddenCount  = allLeads.length - leads.length;
+        const elapsedSec   = Math.round(elapsed / 1000);
 
-        if (currentCount > 0 && currentCount === lastCount) {
-          noIncreaseStreak += 1;
+        // Show a live progress status with elapsed time so user knows it's working
+        if (currentCount === 0) {
+          setDiscoveryStatus(`Scanning & enriching leads... (${elapsedSec}s)`);
         } else {
-          noIncreaseStreak = 0;
+          const hiddenNote = hiddenCount > 0 ? ` · ${hiddenCount} no-email hidden` : "";
+          setDiscoveryStatus(`${currentCount} leads with emails found${hiddenNote} · enriching more... (${elapsedSec}s)`);
         }
 
+        // Track stability — only count as "stable" when there IS data or we've waited >30s
+        if (currentCount === lastCount && (currentCount > 0 || elapsed > 30_000)) {
+          stableStreak += 1;
+        } else {
+          stableStreak = 0;
+        }
         lastCount = currentCount;
 
-        if (noIncreaseStreak >= 2) {
-          console.log("[DiscoverPoll] Count static for 2 consecutive polls. Stopping.");
+        if (stableStreak >= STABLE_POLLS) {
+          console.log(`[DiscoverPoll] Stable for ${STABLE_POLLS} polls. Stopping.`);
           setIsPollingDiscovery(false);
           setIsDiscovering(false);
-          toast.success(`Discovery finished. Sourced ${currentCount} leads.`);
+          if (currentCount === 0) {
+            toast.info("Discovery finished — no leads with contact emails found. Try a different query.");
+          } else {
+            const hidden = allLeads.length - currentCount;
+            toast.success(
+              `Done! Found ${currentCount} leads with contact emails.` +
+              (hidden > 0 ? ` (${hidden} without email hidden)` : "")
+            );
+          }
         }
       } catch (err) {
         console.error("[DiscoverPoll] Error polling:", err);
@@ -926,9 +994,9 @@ If any check fails → fix the affected records before outputting <final>.`;
     };
 
     poll();
-    const interval = setInterval(poll, 3000);
+    const interval = setInterval(poll, POLL_MS);
     return () => clearInterval(interval);
-  }, [isPollingDiscovery, discoverQuery]);
+  }, [isPollingDiscovery, discoverQuery, buildEnrichedQuery]);
 
   // ── Polling Logic ──
   useEffect(() => {
@@ -1255,21 +1323,6 @@ If any check fails → fix the affected records before outputting <final>.`;
 
   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
     <button
-      onClick={handleDeselectNoEmails}
-      className="
-        w-full sm:w-auto
-        px-3 py-2
-        border-2 border-border
-        hover:border-[#ea580c] hover:text-[#ea580c]
-        text-muted-foreground
-        text-xs font-bold uppercase tracking-widest
-        transition-colors rounded-none cursor-pointer
-      "
-    >
-      Exclude No-Email
-    </button>
-
-    <button
       onClick={handleImportSelection}
       disabled={selectedDiscoveredIds.size === 0}
       className="
@@ -1284,7 +1337,7 @@ If any check fails → fix the affected records before outputting <final>.`;
       "
     >
       <Plus className="w-4 h-4" />
-      Import Selection
+      Import Selection ({selectedDiscoveredIds.size})
     </button>
   </div>
 </div>
@@ -2071,6 +2124,7 @@ If any check fails → fix the affected records before outputting <final>.`;
           </div>
           ) : (
             <div className="space-y-6">
+              {/* Row 1: Query + Location */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -2080,7 +2134,8 @@ If any check fails → fix the affected records before outputting <final>.`;
                     type="text"
                     value={discoverQuery}
                     onChange={(e) => setDiscoverQuery(e.target.value)}
-                    placeholder="e.g. React Developer"
+                    onKeyDown={(e) => e.key === "Enter" && !isDiscovering && discoverQuery.trim() && handleStartDiscovery()}
+                    placeholder="e.g. React Developer, MERN Stack, Data Analyst"
                     className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono text-foreground"
                     disabled={isDiscovering}
                   />
@@ -2093,10 +2148,74 @@ If any check fails → fix the affected records before outputting <final>.`;
                     type="text"
                     value={discoverLocation}
                     onChange={(e) => setDiscoverLocation(e.target.value)}
-                    placeholder="e.g. Mumbai, Bangalore, Remote"
+                    onKeyDown={(e) => e.key === "Enter" && !isDiscovering && discoverQuery.trim() && handleStartDiscovery()}
+                    placeholder="e.g. Mumbai, Bangalore, Delhi, Remote"
                     className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono text-foreground"
                     disabled={isDiscovering}
                   />
+                </div>
+              </div>
+
+              {/* Row 2: Experience Level + Job Type */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Experience Level
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { value: "",              label: "Any" },
+                      { value: "fresher",       label: "Fresher" },
+                      { value: "1-2 years",     label: "1–2 Yrs" },
+                      { value: "3-5 years",     label: "3–5 Yrs" },
+                      { value: "5-10 years",    label: "5–10 Yrs" },
+                      { value: "10+ years",     label: "10+ Yrs" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={isDiscovering}
+                        onClick={() => setDiscoverExperience(opt.value)}
+                        className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border-2 rounded-none cursor-pointer transition-colors disabled:opacity-50 ${
+                          discoverExperience === opt.value
+                            ? "border-[#ea580c] bg-[#ea580c]/10 text-[#ea580c]"
+                            : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Job Type
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { value: "",            label: "Any" },
+                      { value: "full-time",   label: "Full-time" },
+                      { value: "remote",      label: "Remote" },
+                      { value: "part-time",   label: "Part-time" },
+                      { value: "internship",  label: "Internship" },
+                      { value: "contract",    label: "Contract" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={isDiscovering}
+                        onClick={() => setDiscoverJobType(opt.value)}
+                        className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border-2 rounded-none cursor-pointer transition-colors disabled:opacity-50 ${
+                          discoverJobType === opt.value
+                            ? "border-[#ea580c] bg-[#ea580c]/10 text-[#ea580c]"
+                            : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -2106,6 +2225,19 @@ If any check fails → fix the affected records before outputting <final>.`;
                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[#ea580c]">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       <span>{discoveryStatus}</span>
+                    </div>
+                  )}
+                  {!isDiscovering && discoveryStatus && (
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {discoveryStatus}
+                    </div>
+                  )}
+                  {!isDiscovering && totalDiscoveredCount > 0 && (
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <span className="text-emerald-400">{discoveredLeads.length} with email</span>
+                      {totalDiscoveredCount - discoveredLeads.length > 0 && (
+                        <span className="text-muted-foreground"> · {totalDiscoveredCount - discoveredLeads.length} no-email hidden</span>
+                      )}
                     </div>
                   )}
                   {userConfig && typeof userConfig.discoveryRemaining === "number" && (
@@ -2175,6 +2307,91 @@ If any check fails → fix the affected records before outputting <final>.`;
   )}
 </div>
               </div>
+
+              {/* ── Discovery Progress Panel ── shown while polling with no results yet */}
+              {isPollingDiscovery && discoveredLeads.length === 0 && (
+                <div className="mt-6 border-2 border-[#ea580c]/30 bg-[#ea580c]/[0.03] rounded-none animate-fade-in font-mono">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#ea580c]/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-[#ea580c] animate-blink rounded-full" />
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#ea580c]">
+                        Discovery Agent Running
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground border border-border px-1.5 py-0.5">
+                      Live
+                    </span>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-4 space-y-4">
+                    {/* Sources grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { name: "Jooble API",     desc: "Global job feed" },
+                        { name: "Adzuna API",     desc: "Job aggregator" },
+                        { name: "Indeed",         desc: "Scraping listings" },
+                        { name: "Naukri",         desc: "India jobs" },
+                        { name: "Shine",          desc: "India jobs" },
+                        { name: "Internshala",    desc: "India internships" },
+                      ].map((src, i) => (
+                        <div key={src.name} className="flex items-center gap-2 px-2.5 py-2 border border-border/50 bg-card">
+                          <Loader2
+                            className="w-3 h-3 text-[#ea580c] shrink-0 animate-spin"
+                            style={{ animationDelay: `${i * 150}ms` }}
+                          />
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-foreground truncate">{src.name}</div>
+                            <div className="text-[9px] text-muted-foreground truncate">{src.desc}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Step indicators */}
+                    <div className="space-y-1.5 text-[10px] font-mono">
+                      {[
+                        "Scanning job boards for matching postings...",
+                        "Deduplicating results across sources...",
+                        "Resolving company domains...",
+                        "Harvesting contact emails from company websites...",
+                        "Verifying MX records for discovered emails...",
+                      ].map((step, i) => (
+                        <div key={i} className="flex items-center gap-2 text-muted-foreground">
+                          <Loader2 className="w-2.5 h-2.5 text-[#ea580c] animate-spin shrink-0" style={{ animationDelay: `${i * 300}ms` }} />
+                          <span>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider border-t border-border/30 pt-3">
+                      This takes 1–3 minutes. Email enrichment runs company by company — only verified contacts appear in the table.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Live banner — shown above the results table while still enriching ── */}
+              {isPollingDiscovery && discoveredLeads.length > 0 && (
+                <div className="mt-4 border-2 border-[#ea580c]/30 bg-[#ea580c]/[0.03] animate-fade-in">
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Loader2 className="w-4 h-4 text-[#ea580c] animate-spin shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-[#ea580c]">
+                        Still enriching — more leads incoming
+                      </div>
+                      <div className="text-[9px] text-muted-foreground mt-0.5 font-mono">
+                        {discoveredLeads.length} leads with emails so far · {totalDiscoveredCount} jobs scanned · harvesting contact info from remaining companies...
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-[10px] font-bold text-[#ea580c]">{discoveredLeads.length}</div>
+                      <div className="text-[9px] text-muted-foreground uppercase">found</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Sourcing Sub-Tabs or Sourced Targets List */}
               {(discoveredLeads.length > 0 || leads.length > 0) && (

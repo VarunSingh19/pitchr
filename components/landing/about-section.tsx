@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { motion } from "framer-motion"
-import Image from "next/image"
+import { Volume2, VolumeX } from "lucide-react"
 import { ScrambleText } from "./scramble-text"
 import { SectionLabel } from "./section-label"
 
@@ -63,28 +63,53 @@ function StatBlock({ label, value, index }: { label: string; value: string; inde
 
 /* ── main about section ── */
 export function AboutSection() {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [muted, setMuted] = useState(true)
+
+  const toggleAudio = () => {
+    const vid = videoRef.current
+    if (!vid) return
+    vid.muted = !vid.muted
+    setMuted(vid.muted)
+  }
+
   return (
     <section className="w-full px-6 py-20 lg:px-12 bg-background">
       <SectionLabel label="OUTREACH_ENGINE" number="002" />
 
       {/* Two-column layout */}
       <div className="flex flex-col lg:flex-row gap-0 border-2 border-foreground">
-        {/* Left: Image */}
+        {/* Left: Video */}
         <motion.div
           initial={{ opacity: 0, x: -30, filter: "blur(6px)" }}
           whileInView={{ opacity: 1, x: 0, filter: "blur(0px)" }}
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.7, ease }}
-          className="relative w-full lg:w-1/2 min-h-[300px] lg:min-h-[500px] border-b-2 lg:border-b-0 lg:border-r-2 border-foreground overflow-hidden bg-[#0A0A0A]"
+          className="relative w-full lg:w-1/2 min-h-75 lg:min-h-125 border-b-2 lg:border-b-0 lg:border-r-2 border-foreground overflow-hidden bg-[#0A0A0A]"
         >
-          <Image
-            src="/images/about-isometric.png"
-            alt="UI view of Pitchr AI outreach pipeline, charts, and metrics"
-            fill
-            className="object-contain opacity-95"
-            sizes="(max-width: 1024px) 100vw, 50vw"
-            priority
-          />
+          <video
+            ref={videoRef}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="w-full h-full object-cover"
+          >
+            <source src="/video/Pitchr%20AI%20.mp4" type="video/mp4" />
+          </video>
+
+          {/* Audio toggle */}
+          <button
+            onClick={toggleAudio}
+            aria-label={muted ? "Unmute video" : "Mute video"}
+            className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1.5 border border-foreground/40 bg-background/80 backdrop-blur-sm text-foreground hover:bg-foreground hover:text-background transition-colors duration-150"
+          >
+            {muted ? <VolumeX size={12} strokeWidth={2} /> : <Volume2 size={12} strokeWidth={2} />}
+            <span className="text-[9px] tracking-[0.18em] uppercase font-mono">
+              {muted ? "AUDIO OFF" : "AUDIO ON"}
+            </span>
+          </button>
         </motion.div>
 
         {/* Right: Content */}

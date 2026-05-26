@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\varun\\\\Desktop\\\\cea\" -Depth 2)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(xargs grep -l \"discover\\\\|leads/discover\\\\|job-discovery\\\\|JobLead\")",
+      "Bash(xargs grep -l \"discover-leads\\\\|leads/discover\\\\|discoverLeads\\\\|job_leads\\\\|JobLead\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('cheerio'\\); console.log\\('cheerio ok:', require\\('./node_modules/cheerio/package.json'\\).version\\)\")"
+    ]
+  }
+}

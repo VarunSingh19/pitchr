@@ -1,8 +1,10 @@
 import mongoose, { Schema, model, models, type Document } from "mongoose";
 
+export type CacheSource = "jooble" | "adzuna" | "indeed" | "naukri" | "shine" | "internshala";
+
 export interface ICacheQueryMeta extends Document {
   normalizedQuery: string;
-  source: "jooble" | "adzuna" | "indeed";
+  source: CacheSource;
   lastPageFetched: number;
   totalCachedCount: number;
   lastFetchedAt: Date;
@@ -14,7 +16,7 @@ const CacheQueryMetaSchema = new Schema<ICacheQueryMeta>(
     normalizedQuery: { type: String, required: true },
     source: {
       type: String,
-      enum: ["jooble", "adzuna", "indeed"],
+      enum: ["jooble", "adzuna", "indeed", "naukri", "shine", "internshala"],
       required: true,
     },
     lastPageFetched: { type: Number, default: 1 },

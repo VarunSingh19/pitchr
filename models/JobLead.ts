@@ -3,7 +3,7 @@ import mongoose, { Schema, model, models, type Document } from "mongoose";
 export interface IJobLead extends Document {
   searchQuery: string;
   normalizedQuery: string;
-  source: "jooble" | "adzuna" | "indeed" | "naukri" | "unknown";
+  source: "jooble" | "adzuna" | "indeed" | "naukri" | "shine" | "internshala" | "unknown";
   jobTitle: string;
   companyName: string;
   website: string | null;

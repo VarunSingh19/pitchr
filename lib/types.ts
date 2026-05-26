@@ -45,7 +45,7 @@ export interface Credentials {
 }
 
 export interface DiscoveredJob {
-  source: "jooble" | "adzuna" | "indeed" | "naukri" | "unknown";
+  source: "jooble" | "adzuna" | "indeed" | "naukri" | "shine" | "internshala" | "unknown";
   jobTitle: string;
   companyName: string;
   location: string;

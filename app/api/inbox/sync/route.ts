@@ -123,7 +123,7 @@ export async function POST() {
           userId: user._id,
           messageId: match.inReplyTo,
           imapUid: match.uid.toString(),
-          companyName: log ? log.companyName : 'Unknown Company',
+          companyName: log?.companyName || 'Unknown Company',
           recipientEmail: parsed.from?.value[0]?.address || 'unknown',
           subject: parsed.subject || 'No Subject',
           snippet: parsed.text ? parsed.text.substring(0, 100) + '...' : '',

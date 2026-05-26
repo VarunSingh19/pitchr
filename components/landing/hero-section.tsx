@@ -11,21 +11,7 @@ const ease = [0.22, 1, 0.36, 1] as const
 export function HeroSection() {
   return (
     <section className="relative w-full px-6 pt-12 pb-16 lg:px-12 lg:pt-20 lg:pb-24 overflow-hidden">
-      {/* Background Video Layer */}
-      <div className="absolute inset-0 w-full h-full z-0 pointer-events-none select-none">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          className="w-full h-full object-cover opacity-20 dark:opacity-30 transition-opacity duration-300"
-        >
-          <source src="/video/Pitchr%20AI%20.mp4" type="video/mp4" />
-        </video>
-      </div>
-
-      <div className="relative z-10 flex flex-col items-center text-center">
+      <div className="flex flex-col items-center text-center">
         {/* Top headline: CRAFT. PITCH. */}
         <motion.h1
           initial={{ opacity: 0, y: 30, filter: "blur(8px)" }}
