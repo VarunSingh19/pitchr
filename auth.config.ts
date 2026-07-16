@@ -11,6 +11,9 @@ export const authConfig = {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Google verifies email ownership, so auto-linking a Google sign-in to an
+      // existing user with the same email is safe here. Prevents OAuthAccountNotLinked.
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   pages: {

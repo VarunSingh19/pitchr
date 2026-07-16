@@ -36,6 +36,7 @@ interface UserWithStats {
   email: string;
   image?: string;
   role: "user" | "admin";
+  plan: "free" | "starter" | "pro" | "enterprise";
   lastLoginAt?: string | null;
   createdAt: string;
   campaignCount: number;
@@ -154,6 +155,44 @@ export default function AdminUsersPage() {
         }
       }
     });
+  };
+
+  // Handle plan modification
+  const handleUpdatePlan = async (userId: string, newPlan: string) => {
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, plan: newPlan }),
+      });
+      if (res.ok) {
+        await fetchUsers();
+        setAlertModal({
+          isOpen: true,
+          title: "Plan Updated",
+          message: `User's plan successfully updated to ${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}.`,
+          type: "success",
+        });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setAlertModal({
+          isOpen: true,
+          title: "Update Failed",
+          message: err.error || "Failed to update plan.",
+          type: "error",
+        });
+      }
+    } catch {
+      setAlertModal({
+        isOpen: true,
+        title: "Network Error",
+        message: "Failed to update plan due to connection issues.",
+        type: "error",
+      });
+    } finally {
+      setUpdatingUserId(null);
+    }
   };
 
   // Trigger impersonation
@@ -407,6 +446,7 @@ export default function AdminUsersPage() {
               <tr className="border-b border-border-default text-xs font-semibold text-text-muted bg-bg-base/40">
                 <th className="p-4 pl-6">User Details</th>
                 <th className="p-4">Role</th>
+                <th className="p-4">Plan</th>
                 <th className="p-4">Campaigns</th>
                 <th className="p-4">Emails Sent</th>
                 <th className="p-4">Quotas</th>
@@ -456,6 +496,33 @@ export default function AdminUsersPage() {
                       {user.role === "admin" && <Shield className="w-3 h-3" />}
                       {user.role}
                     </span>
+                  </td>
+
+                  {/* Plan — inline updatable */}
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={user.plan}
+                        disabled={updatingUserId === user._id}
+                        onChange={(e) => handleUpdatePlan(user._id, e.target.value)}
+                        className={cn(
+                          "bg-bg-base border border-border-default rounded-lg px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide outline-none cursor-pointer focus:border-orange-500/50 hover:bg-bg-elevated transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                          user.plan === "enterprise" && "text-purple-400",
+                          user.plan === "pro" && "text-orange-400",
+                          user.plan === "starter" && "text-blue-400",
+                          user.plan === "free" && "text-text-muted"
+                        )}
+                        title="Update user plan"
+                      >
+                        <option value="free">Free</option>
+                        <option value="starter">Starter</option>
+                        <option value="pro">Pro</option>
+                        <option value="enterprise">Enterprise</option>
+                      </select>
+                      {updatingUserId === user._id && (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" />
+                      )}
+                    </div>
                   </td>
 
                   {/* Campaign Count */}

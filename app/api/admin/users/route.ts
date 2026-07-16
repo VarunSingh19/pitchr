@@ -64,6 +64,7 @@ export async function GET() {
           email: user.email,
           image: user.image,
           role: user.role,
+          plan: user.plan || "free",
           lastLoginAt: user.lastLoginAt || null,
           createdAt: user.createdAt,
           campaignCount,
@@ -103,7 +104,7 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const { userId, role, quotas } = await request.json();
+    const { userId, role, plan, quotas } = await request.json();
 
     if (!userId) {
       return Response.json({ error: "userId is required" }, { status: 400 });
@@ -118,6 +119,14 @@ export async function PATCH(request: Request) {
         return Response.json({ error: "Invalid role value" }, { status: 400 });
       }
       updateFields.role = role;
+    }
+
+    if (plan !== undefined) {
+      const validPlans = ["free", "starter", "pro", "enterprise"];
+      if (!validPlans.includes(plan)) {
+        return Response.json({ error: "Invalid plan value" }, { status: 400 });
+      }
+      updateFields.plan = plan;
     }
 
     if (quotas !== undefined) {

@@ -598,6 +598,15 @@ If any check fails → fix the affected records before outputting <final>.`;
     userConfig.gmailConfigured &&
     userConfig.userName.trim().length > 0;
 
+  // ── Auto-discovery prerequisites ──
+  // The user must have Gmail configured and a resume on file before sourcing leads,
+  // otherwise a discovered campaign can't actually be personalised or sent.
+  const hasResumeForDiscovery = !!userConfig?.savedResume || resumeText.length > 0;
+  const discoveryMissingConfig: string[] = [];
+  if (userConfig && !userConfig.gmailConfigured) discoveryMissingConfig.push("Gmail app password not saved");
+  if (userConfig && !hasResumeForDiscovery) discoveryMissingConfig.push("Resume not uploaded");
+  const isDiscoveryReady = !!userConfig && discoveryMissingConfig.length === 0;
+
   // ── Check which leads were already sent & verify domains ──
   const checkAlreadySent = useCallback(async (leadsToCheck: Lead[]) => {
     const emails = leadsToCheck
@@ -730,6 +739,11 @@ If any check fails → fix the affected records before outputting <final>.`;
     const queryTrimmed = discoverQuery.trim();
     if (!queryTrimmed) return;
 
+    if (!userConfig?.gmailConfigured || !(userConfig?.savedResume || resumeText.length > 0)) {
+      toast.error("Configure your Gmail and upload a resume in Settings before sourcing leads.");
+      return;
+    }
+
     const enrichedQuery = buildEnrichedQuery();
 
     setIsDiscovering(true);
@@ -791,12 +805,17 @@ If any check fails → fix the affected records before outputting <final>.`;
       setIsDiscovering(false);
       toast.error(err.message || "Failed to start discovery");
     }
-  }, [discoverQuery, discoverLocation, buildEnrichedQuery]);
+  }, [discoverQuery, discoverLocation, buildEnrichedQuery, userConfig, resumeText]);
 
   // ── Find More Leads (force refresh — burns 1 quota credit) ──
   const handleFindMoreLeads = useCallback(async () => {
     const queryTrimmed = discoverQuery.trim();
     if (!queryTrimmed) return;
+
+    if (!userConfig?.gmailConfigured || !(userConfig?.savedResume || resumeText.length > 0)) {
+      toast.error("Configure your Gmail and upload a resume in Settings before sourcing leads.");
+      return;
+    }
 
     const enrichedQuery = buildEnrichedQuery();
 
@@ -833,7 +852,7 @@ If any check fails → fix the affected records before outputting <final>.`;
       setIsDiscovering(false);
       toast.error(err.message || "Failed to fetch more leads");
     }
-  }, [discoverQuery, discoverLocation, buildEnrichedQuery]);
+  }, [discoverQuery, discoverLocation, buildEnrichedQuery, userConfig, resumeText]);
 
   const handleImportSelection = useCallback(() => {
     const selectedJobs = discoveredLeads.filter((l) => selectedDiscoveredIds.has(l.jobUrl));
@@ -2124,6 +2143,24 @@ If any check fails → fix the affected records before outputting <final>.`;
           </div>
           ) : (
             <div className="space-y-6">
+              {/* Config gate — must have Gmail + resume before sourcing leads */}
+              {!isDiscoveryReady && (
+                <div className="flex flex-col gap-2 p-4 border-2 border-amber-500/30 bg-amber-500/5 text-xs font-mono text-amber-500 rounded-none">
+                  <div className="flex items-center gap-2 font-bold uppercase tracking-wider">
+                    <AlertCircle className="w-4 h-4" />
+                    Configure Your Account Before Sourcing Leads
+                  </div>
+                  <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                    {discoveryMissingConfig.map((issue) => (
+                      <li key={issue}>{issue}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-[10px] text-muted-foreground uppercase font-bold">
+                    Please add these in <a href="/dashboard/settings" className="underline hover:text-[#ea580c]">Settings</a> first — discovered leads can&apos;t be personalised or sent without them.
+                  </p>
+                </div>
+              )}
+
               {/* Row 1: Query + Location */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
@@ -2134,7 +2171,7 @@ If any check fails → fix the affected records before outputting <final>.`;
                     type="text"
                     value={discoverQuery}
                     onChange={(e) => setDiscoverQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !isDiscovering && discoverQuery.trim() && handleStartDiscovery()}
+                    onKeyDown={(e) => e.key === "Enter" && !isDiscovering && discoverQuery.trim() && isDiscoveryReady && handleStartDiscovery()}
                     placeholder="e.g. React Developer, MERN Stack, Data Analyst"
                     className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono text-foreground"
                     disabled={isDiscovering}
@@ -2148,7 +2185,7 @@ If any check fails → fix the affected records before outputting <final>.`;
                     type="text"
                     value={discoverLocation}
                     onChange={(e) => setDiscoverLocation(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !isDiscovering && discoverQuery.trim() && handleStartDiscovery()}
+                    onKeyDown={(e) => e.key === "Enter" && !isDiscovering && discoverQuery.trim() && isDiscoveryReady && handleStartDiscovery()}
                     placeholder="e.g. Mumbai, Bangalore, Delhi, Remote"
                     className="w-full bg-foreground/[0.01] border-2 border-border px-3 py-2 text-xs focus:outline-none focus:border-[#ea580c] rounded-none font-mono text-foreground"
                     disabled={isDiscovering}
@@ -2269,14 +2306,15 @@ If any check fails → fix the affected records before outputting <final>.`;
 
   <button
     onClick={handleStartDiscovery}
-    disabled={isDiscovering || !discoverQuery.trim()}
+    disabled={isDiscovering || !discoverQuery.trim() || !isDiscoveryReady}
+    title={!isDiscoveryReady ? "Configure Gmail and upload a resume in Settings first" : undefined}
     className="
       w-full sm:w-auto
       px-5 py-3
       bg-foreground text-background
       text-xs font-bold uppercase tracking-widest
       hover:bg-[#ea580c] hover:text-background
-      disabled:opacity-50
+      disabled:opacity-50 disabled:cursor-not-allowed
       transition-colors rounded-none cursor-pointer
     "
   >
@@ -2287,7 +2325,7 @@ If any check fails → fix the affected records before outputting <final>.`;
   {discoveredLeads.length > 0 && !isDiscovering && (
     <button
       onClick={handleFindMoreLeads}
-      disabled={isDiscovering || !discoverQuery.trim()}
+      disabled={isDiscovering || !discoverQuery.trim() || !isDiscoveryReady}
       className="
         w-full sm:w-auto
         px-4 py-2.5
