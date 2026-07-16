@@ -7,6 +7,12 @@ import Campaign from "@/models/Campaign";
 import { Types } from "mongoose";
 import { decrypt } from "@/lib/encryption";
 import { createTransporter, sendEmail } from "@/lib/mailer";
+import { normalizeQueryWithLocation } from "@/lib/services/query-normalize";
+import {
+  enrichAndSaveJob,
+  updateCacheQueryMeta,
+  type EnrichmentResult,
+} from "@/lib/services/lead-discovery-pipeline";
 
 export const generateSingleEmail = inngest.createFunction(
   {
@@ -765,71 +771,6 @@ export const verifyDelivery = inngest.createFunction(
   }
 );
 
-async function enrichAndSaveJob(job: any, query: string) {
-  const JobLead = (await import("@/models/JobLead")).default;
-  const { resolveDomain } = await import("@/lib/services/domain-resolver");
-  const { scrapeEmailsFromWebsite, verifyEmail } = await import("@/lib/services/email-scraper");
-
-  let websiteUrl = null;
-  let contactEmail = null;
-  let emailSource = null;
-  let emailVerified = false;
-
-  try {
-    websiteUrl = await resolveDomain(job.companyName);
-    if (websiteUrl) {
-      const scrapeRes = await scrapeEmailsFromWebsite(websiteUrl);
-      if (scrapeRes.emails && scrapeRes.emails.length > 0) {
-        // Try to find a verified email
-        for (const email of scrapeRes.emails) {
-          const isVerified = await verifyEmail(email);
-          if (isVerified) {
-            contactEmail = email;
-            emailSource = scrapeRes.source;
-            emailVerified = true;
-            break;
-          }
-        }
-        // Fallback to first if none verified
-        if (!contactEmail) {
-          contactEmail = scrapeRes.emails[0];
-          emailSource = scrapeRes.source;
-          emailVerified = false;
-        }
-      }
-    }
-  } catch (err) {
-    console.error(`Error enriching job for ${job.companyName}:`, err);
-  }
-
-  const payload = {
-    searchQuery: query,
-    source: job.source,
-    jobTitle: job.jobTitle,
-    companyName: job.companyName,
-    website: websiteUrl,
-    location: job.location,
-    description: job.description,
-    contactEmail,
-    emailSource,
-    emailVerified,
-    postingDate: job.postingDate || new Date(),
-    status: "discovered",
-  };
-
-  try {
-    const updated = await JobLead.findOneAndUpdate(
-      { jobUrl: job.jobUrl },
-      { $set: payload },
-      { upsert: true, returnDocument: "after" }
-    );
-    return updated;
-  } catch (dbErr) {
-    console.error(`Error saving JobLead in DB for ${job.companyName}:`, dbErr);
-    return null;
-  }
-}
-
 export const discoverLeads = inngest.createFunction(
   {
     id: "discover-leads",
@@ -837,41 +778,50 @@ export const discoverLeads = inngest.createFunction(
     triggers: [{ event: "leads/discover" }],
   },
   async ({ event, step }) => {
-    const { query, location } = event.data;
+    const { query, location, pageOffsets } = event.data;
+    const loc = location || "";
 
-    // Step 1: Fetch candidate jobs
+    // Always recompute the cache key so it matches the API route exactly,
+    // regardless of what the event payload carried.
+    const normalizedQuery = normalizeQueryWithLocation(query, loc);
+
+    // Step 1: Fetch candidate jobs (honouring page offsets for "Find More Leads")
     const jobs = await step.run("fetch-jobs", async () => {
       const { searchAllJobBoards } = await import("@/lib/services/job-discovery");
-      return searchAllJobBoards(query, location);
+      return searchAllJobBoards(query, loc, pageOffsets);
     });
 
     if (!jobs || jobs.length === 0) {
       return { success: true, count: 0 };
     }
 
-    // Step 2: Batch the jobs in groups of 5 and run enrichment
+    // Step 2: Batch enrich using the shared pipeline. A per-invocation company
+    // cache means a company appearing many times is only resolved once. The
+    // shared enrichAndSaveJob applies the job-title guard and writes
+    // normalizedQuery, keeping this path identical to the route's fallback.
+    const companyCache = new Map<string, EnrichmentResult>();
     const batchSize = 5;
-    const enrichedResults = [];
 
     for (let i = 0; i < jobs.length; i += batchSize) {
       const batchNumber = Math.floor(i / batchSize) + 1;
       const batch = jobs.slice(i, i + batchSize);
 
-      const batchResult = await step.run(`enrich-batch-${batchNumber}`, async () => {
-        const { dbConnect } = await import("@/lib/db");
+      await step.run(`enrich-batch-${batchNumber}`, async () => {
         await dbConnect();
-
-        // Run enrichments in parallel
-        return Promise.all(
-          batch.map((job) => enrichAndSaveJob(job, query))
+        await Promise.all(
+          batch.map((job: any) => enrichAndSaveJob(job, query, normalizedQuery, companyCache))
         );
+        return batch.length;
       });
-      
-      if (batchResult) {
-        enrichedResults.push(...batchResult);
-      }
     }
 
-    return { success: true, count: enrichedResults.length };
+    // Step 3: Advance the per-source page cache so the next "Find More Leads"
+    // pulls the following page instead of re-fetching page 1.
+    await step.run("update-cache-meta", async () => {
+      await dbConnect();
+      await updateCacheQueryMeta(normalizedQuery, loc, jobs, pageOffsets);
+    });
+
+    return { success: true, count: jobs.length };
   }
 );

@@ -873,7 +873,15 @@ If any check fails → fix the affected records before outputting <final>.`;
 
     setLeads((prev) => {
       const seenEmails = new Set(prev.map((l) => l.contact_email?.toLowerCase()).filter(Boolean));
-      const uniqueNew = mapped.filter((l) => !seenEmails.has(l.contact_email?.toLowerCase()));
+      // Dedup against existing leads AND within this batch itself, so two
+      // postings from the same company (same email) can't both be imported.
+      const uniqueNew = mapped.filter((l) => {
+        const key = l.contact_email?.toLowerCase();
+        if (!key) return true;              // no email → can't dedup, keep it
+        if (seenEmails.has(key)) return false;
+        seenEmails.add(key);
+        return true;
+      });
       const updated = [...prev, ...uniqueNew];
       checkAlreadySent(updated);
       return updated;
@@ -955,7 +963,7 @@ If any check fails → fix the affected records before outputting <final>.`;
       }
 
       try {
-        const res = await fetch(`/api/leads/discover?query=${encodeURIComponent(buildEnrichedQuery())}`);
+        const res = await fetch(`/api/leads/discover?query=${encodeURIComponent(buildEnrichedQuery())}&location=${encodeURIComponent(discoverLocation.trim())}`);
         if (!res.ok) return;
         const data = await res.json();
         const allLeads = (data.leads ?? []) as { jobUrl: string; contactEmail?: string }[];
@@ -1015,7 +1023,7 @@ If any check fails → fix the affected records before outputting <final>.`;
     poll();
     const interval = setInterval(poll, POLL_MS);
     return () => clearInterval(interval);
-  }, [isPollingDiscovery, discoverQuery, buildEnrichedQuery]);
+  }, [isPollingDiscovery, discoverQuery, discoverLocation, buildEnrichedQuery]);
 
   // ── Polling Logic ──
   useEffect(() => {
